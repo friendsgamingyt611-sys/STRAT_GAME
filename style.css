@@ -821,3 +821,63 @@ body.phone-arm-ui .log-panel {
   max-height: 100px;
 }
 
+/* Tactic Card & Spider Web chart */
+.tactic-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.tactic-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.tactic-title {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+
+.tactic-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  background: rgba(234, 179, 8, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.canvas-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem 0;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: var(--r1);
+}
+
+#tactic-chart {
+  display: block;
+  max-width: 100%;
+}
+
+.tactic-footer {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--dim);
+  text-align: center;
+}
+
+
