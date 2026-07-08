@@ -1,0 +1,529 @@
+/**
+ * UI.js — Shoot Or Shield
+ * All DOM access lives here.
+ *
+ * TIMING MODEL:
+ *   Selection phase : 10 seconds
+ *     – Player clicks a button to SELECT (not commit) a move.
+ *     – Can change selection any time.
+ *     – At 0 s, whatever is selected (or IDLE by default) is submitted.
+ *   Reveal phase    : 5 seconds
+ *     – Both moves shown, result displayed, score updated.
+ *     – Auto-advances after 5 s. Player can SKIP early.
+ *   Terminal round  : reveal shows final result → goes to game-over screen.
+ *
+ * CPU style is NEVER revealed to the player.
+ */
+
+import { Phase }                   from './State.js';
+import { MOVES, OUTCOMES, Rules }  from './Rules.js';
+
+const LABELS = {
+  [MOVES.SHOOT]:  { icon: '⚡', label: 'SHOOT',  sub: '1 unit · kills idler' },
+  [MOVES.SHIELD]: { icon: '🛡', label: 'SHIELD', sub: '1 unit · deflects shot' },
+  [MOVES.IDLE]:   { icon: '◎', label: 'IDLE',   sub: 'free · carries unit' },
+};
+
+const OUT_CLASS = {
+  [OUTCOMES.KILL_PLAYER]:  'outcome-kill-p',
+  [OUTCOMES.KILL_CPU]:     'outcome-kill-cpu',
+  [OUTCOMES.DUAL_DEFEAT]:  'outcome-dual',
+  [OUTCOMES.POINT_PLAYER]: 'outcome-win',
+  [OUTCOMES.POINT_CPU]:    'outcome-lose',
+  [OUTCOMES.STANDOFF]:     'outcome-standoff',
+};
+
+const SELECT_DURATION = 10;   // seconds for move selection
+const REVEAL_DURATION = 5;    // seconds for result display
+
+export class UI {
+  constructor(game) {
+    this.game         = game;
+    this.selectedMove = null;   // currently highlighted move (not yet committed)
+    this._timer       = null;   // active interval handle
+    this._timerRemain = 0;
+
+    this._bind();
+    this._attachListeners();
+    this.game.state.subscribe(s => this._onStateChange(s));
+    this._showScreen('menu');
+    this._renderProfile();
+  }
+
+  // ─── Element binding ─────────────────────────────────────
+  _bind() {
+    const $ = id => document.getElementById(id);
+
+    this.screens = {
+      menu:     $('screen-menu'),
+      game:     $('screen-game'),
+      gameover: $('screen-gameover'),
+    };
+
+    // Menu
+    this.elProfilePts    = $('profile-pts');
+    this.btnStart        = $('btn-start');
+    this.btnResetProfile = $('btn-reset-profile');
+
+    // Leaderboard
+    this.elLbPlayerPts   = $('lb-player-pts');
+    this.elLbCpuPts      = $('lb-cpu-pts');
+    this.elPlayerCrown   = $('player-crown');
+    this.elCpuCrown      = $('cpu-crown');
+    this.elArmBadgeMenu  = $('arm-badge-menu');
+    this.elArmBadgeGame  = $('arm-badge-game');
+
+    // Timer UI
+    this.elTimerBar      = $('timer-bar');
+    this.elTimerCount    = $('timer-count');
+    this.elTimerPhase    = $('timer-phase');
+    this.elTimerSel      = $('timer-selection');
+
+    // HUD
+    this.elRound         = $('hud-round');
+    this.elPlayerMatchPts = $('player-match-pts');
+    this.elCpuMatchPts   = $('cpu-match-pts');
+    this.elPot           = $('pot-total');
+    this.elPlayerUnits   = $('player-units');
+    this.elCpuUnits      = $('cpu-units');
+    this.elPlayerStatus  = $('player-status');
+    this.elCpuStatus     = $('cpu-status');
+
+    // Arena
+    this.elPlayerMove    = $('player-move-display');
+    this.elCpuMove       = $('cpu-move-display');
+    this.elResultText    = $('result-text');
+    this.elResultDesc    = $('result-desc');
+    this.elRevealTimer   = $('reveal-timer');
+    this.btnContinue     = $('btn-continue');
+
+    // Move picker
+    this.moveBtns        = document.querySelectorAll('[data-move]');
+
+    // Log
+    this.logList         = $('round-log');
+
+    // Game over
+    this.elEndTitle      = $('end-title');
+    this.elEndBody       = $('end-body');
+    this.elEndProfile    = $('end-profile-pts');
+    this.btnPlayAgain    = $('btn-play-again');
+    this.btnMainMenu     = $('btn-main-menu');
+  }
+
+  // ─── Listeners ───────────────────────────────────────────
+  _attachListeners() {
+    this.btnStart.addEventListener('click', () => {
+      this.game.start();
+      this._clearLog();
+      this._showScreen('game');
+      this._renderHUD(this.game.state.snapshot());
+      this._beginSelectionPhase();
+    });
+
+    this.btnResetProfile?.addEventListener('click', () => {
+      const mem = this.game.getCpuMemorySize();
+      if (confirm(`Reset your profile points AND wipe all CPU memory (${mem} rounds learned)?`)) {
+        this.game.resetAll();
+        this._renderProfile();
+      }
+    });
+
+    // Move buttons: click = SELECT (not commit), can change before timer fires
+    this.moveBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.classList.contains('locked') || btn.disabled) return;
+        const move = btn.dataset.move;
+        if (!this.game.player.canAfford(move)) return;
+        this._selectMove(move);
+      });
+    });
+
+    // SKIP button: skip the 5-second reveal early
+    this.btnContinue.addEventListener('click', () => {
+      this._clearTimer();
+      this._advanceAfterReveal();
+    });
+
+    this.btnPlayAgain.addEventListener('click', () => {
+      this.game.start();
+      this._clearLog();
+      this._showScreen('game');
+      this._renderHUD(this.game.state.snapshot());
+      this._beginSelectionPhase();
+    });
+
+    this.btnMainMenu.addEventListener('click', () => {
+      this._clearTimer();
+      this._renderProfile();
+      this._showScreen('menu');
+    });
+  }
+
+  // ─── State change handler ────────────────────────────────
+  _onStateChange(state) {
+    // Game-over is handled directly by _advanceAfterReveal
+    // Selecting phase is started by _advanceAfterReveal too
+    // This callback mainly keeps HUD in sync
+    if (state.phase === Phase.SELECTING) {
+      this._renderHUD(state);
+      this._refreshMoveBtns();
+    }
+  }
+
+  // ─── Selection Phase (10 s) ──────────────────────────────
+  _beginSelectionPhase() {
+    this.selectedMove = null;
+    this._lockMoveButtons(false);
+    this._refreshMoveBtns();
+    this._resetArena();
+    this._hideSkip();
+    this._setTimerPhase('SELECT YOUR MOVE');
+    this._updateSelectionLabel();
+
+    this._runTimer(SELECT_DURATION, (remaining) => {
+      // update bar & count each tick
+      this.elTimerCount.textContent = remaining;
+      this.elTimerCount.classList.toggle('urgent', remaining <= 3);
+      this.elTimerBar.classList.toggle('urgent', remaining <= 3);
+      const pct = (remaining / SELECT_DURATION) * 100;
+      this.elTimerBar.style.width = `${pct}%`;
+    }, () => {
+      // timer expired — commit selected move (default IDLE)
+      this._commitMove(this.selectedMove ?? MOVES.IDLE);
+    });
+  }
+
+  _selectMove(move) {
+    this.selectedMove = move;
+    // Update button highlights
+    this.moveBtns.forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.move === move);
+    });
+    this._updateSelectionLabel();
+  }
+
+  _updateSelectionLabel() {
+    if (!this.elTimerSel) return;
+    if (this.selectedMove) {
+      const l = LABELS[this.selectedMove];
+      this.elTimerSel.textContent = `Selected: ${l.icon} ${l.label}`;
+    } else {
+      this.elTimerSel.textContent = 'No move selected — IDLE will be chosen';
+    }
+  }
+
+  _commitMove(move) {
+    this._clearTimer();
+    this._lockMoveButtons(true);
+
+    // Visual: highlight the committed button briefly
+    this.moveBtns.forEach(btn => {
+      btn.classList.toggle('selected', btn.dataset.move === move);
+    });
+
+    // Set timer UI to "processing"
+    this.elTimerCount.textContent = '…';
+    this.elTimerBar.style.width   = '0%';
+    this._setTimerPhase('REVEALING');
+    if (this.elTimerSel) this.elTimerSel.textContent = '';
+
+    // Small delay for dramatic effect, then resolve
+    setTimeout(() => {
+      const snap = this.game.playTurn(move);
+      if (snap) this._showReveal(snap);
+    }, 200);
+  }
+
+  // ─── Reveal Phase (5 s) ──────────────────────────────────
+  _showReveal(snap) {
+    const pm = LABELS[snap.playerMove];
+    const cm = LABELS[snap.cpuMove];
+
+    this.elPlayerMove.textContent = `${pm.icon} ${pm.label}`;
+    this.elCpuMove.textContent    = `${cm.icon} ${cm.label}`;
+
+    const cls = OUT_CLASS[snap.lastOutcome] ?? '';
+    this.elResultText.className   = `result-text ${cls}`;
+    this.elResultText.textContent = this._headline(snap.lastOutcome);
+    this.elResultDesc.textContent = snap.lastDesc;
+
+    this._renderHUD(snap);
+    this._appendLog(snap);
+    this._playTone(snap.lastOutcome);
+
+    const isTerminal = Rules.isTerminal(snap.lastOutcome);
+
+    if (isTerminal) {
+      // Game over — show skip button but no countdown
+      this._setTimerPhase('MATCH OVER');
+      this.elTimerCount.textContent = '';
+      this.elTimerBar.style.width   = '0%';
+      if (this.elTimerSel) this.elTimerSel.textContent = 'Proceeding to results…';
+      this._showSkip();
+
+      // Auto go to game over after REVEAL_DURATION
+      this._runTimer(REVEAL_DURATION, (r) => {
+        if (this.elRevealTimer) this.elRevealTimer.textContent = `→ results in ${r}s`;
+      }, () => {
+        this._advanceAfterReveal();
+      });
+    } else {
+      // Normal round — show countdown to next round
+      this._setTimerPhase('RESULT');
+      this.elTimerCount.textContent = REVEAL_DURATION;
+      this.elTimerBar.style.width   = '100%';
+      if (this.elTimerSel) this.elTimerSel.textContent = 'Next round starting…';
+      this._showSkip();
+
+      this._runTimer(REVEAL_DURATION, (r) => {
+        this.elTimerCount.textContent = r;
+        const pct = (r / REVEAL_DURATION) * 100;
+        this.elTimerBar.style.width = `${pct}%`;
+        if (this.elRevealTimer) this.elRevealTimer.textContent = `Next round in ${r}s`;
+      }, () => {
+        this._advanceAfterReveal();
+      });
+    }
+  }
+
+  _advanceAfterReveal() {
+    this._clearTimer();
+    this._hideSkip();
+    if (this.elRevealTimer) this.elRevealTimer.textContent = '';
+
+    this.game.advance();   // updates state (SELECTING or GAME_OVER)
+
+    if (this.game.state.phase === 'game_over') {
+      setTimeout(() => this._showGameOver(this.game.state.snapshot()), 50);
+    } else {
+      // New selection phase
+      this._beginSelectionPhase();
+    }
+  }
+
+  // ─── Timer engine ────────────────────────────────────────
+  /**
+   * Run a countdown timer.
+   * @param {number}   duration  - seconds
+   * @param {Function} onTick    - called each second with (remaining)
+   * @param {Function} onExpire  - called when hits 0
+   */
+  _runTimer(duration, onTick, onExpire) {
+    this._clearTimer();
+    let remaining = duration;
+    onTick(remaining);   // immediate first tick
+
+    this._timer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        this._clearTimer();
+        onExpire();
+      } else {
+        onTick(remaining);
+      }
+    }, 1000);
+  }
+
+  _clearTimer() {
+    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+  }
+
+  _setTimerPhase(label) {
+    if (this.elTimerPhase) this.elTimerPhase.textContent = label;
+  }
+
+  // ─── HUD & UI helpers ────────────────────────────────────
+  _renderProfile() {
+    const pPts = this.game.getProfilePts();
+    const cPts = this.game.getCpuProfilePts();
+
+    if (this.elProfilePts) this.elProfilePts.textContent = pPts;
+    
+    // Show how much the CPU has learned
+    const memEl = document.getElementById('cpu-memory-size');
+    if (memEl) memEl.textContent = this.game.getCpuMemorySize();
+
+    // Leaderboard rendering
+    if (this.elLbPlayerPts) this.elLbPlayerPts.textContent = pPts;
+    if (this.elLbCpuPts) this.elLbCpuPts.textContent = cPts;
+
+    // Crown logic
+    if (this.elPlayerCrown && this.elCpuCrown) {
+      if (pPts > cPts) {
+        this.elPlayerCrown.style.display = 'inline';
+        this.elCpuCrown.style.display = 'none';
+      } else if (cPts > pPts) {
+        this.elPlayerCrown.style.display = 'none';
+        this.elCpuCrown.style.display = 'inline';
+      } else {
+        // Equal
+        if (pPts > 0) {
+          this.elPlayerCrown.style.display = 'inline';
+          this.elCpuCrown.style.display = 'inline';
+        } else {
+          this.elPlayerCrown.style.display = 'none';
+          this.elCpuCrown.style.display = 'none';
+        }
+      }
+    }
+
+    // ARM Mobile Detection display check
+    const isArmUi = document.body.classList.contains('phone-arm-ui');
+    if (this.elArmBadgeMenu) {
+      this.elArmBadgeMenu.style.display = isArmUi ? 'inline-block' : 'none';
+    }
+    if (this.elArmBadgeGame) {
+      this.elArmBadgeGame.style.display = isArmUi ? 'block' : 'none';
+    }
+  }
+
+  _renderHUD(state) {
+    this.elRound.textContent           = `Round ${state.round}`;
+    this.elPlayerMatchPts.textContent  = state.playerMatchPts;
+    this.elCpuMatchPts.textContent     = state.cpuMatchPts;
+    if (this.elPot) this.elPot.textContent = state.playerMatchPts + state.cpuMatchPts;
+    this.elPlayerUnits.textContent     = this._pips(state.playerUnits);
+    this.elCpuUnits.textContent        = this._pips(state.cpuUnits);
+    this.elPlayerStatus.textContent    = state.playerAlive ? 'ALIVE' : 'DEAD';
+    this.elPlayerStatus.className      = `status-badge ${state.playerAlive ? 'alive' : 'dead'}`;
+    this.elCpuStatus.textContent       = state.cpuAlive ? 'ALIVE' : 'DEAD';
+    this.elCpuStatus.className         = `status-badge ${state.cpuAlive ? 'alive' : 'dead'}`;
+  }
+
+  _pips(n) {
+    if (n <= 0) return '○';
+    return '●'.repeat(Math.min(n, 6)) + (n > 6 ? `+${n - 6}` : '');
+  }
+
+  _refreshMoveBtns() {
+    this.moveBtns.forEach(btn => {
+      const move     = btn.dataset.move;
+      const canAct   = this.game.player.canAfford(move);
+      btn.disabled   = !canAct;
+      btn.classList.toggle('unaffordable', !canAct);
+      btn.classList.toggle('selected', btn.dataset.move === this.selectedMove);
+    });
+  }
+
+  _lockMoveButtons(locked) {
+    this.moveBtns.forEach(btn => {
+      btn.classList.toggle('locked', locked);
+      btn.disabled = locked;
+    });
+  }
+
+  _resetArena() {
+    this.elPlayerMove.textContent = '?';
+    this.elCpuMove.textContent    = '?';
+    this.elResultText.textContent = '';
+    this.elResultDesc.textContent = '';
+    this.elResultText.className   = 'result-text';
+    if (this.elRevealTimer) this.elRevealTimer.textContent = '';
+    // Reset timer bar
+    this.elTimerBar.style.width   = '100%';
+    this.elTimerBar.classList.remove('urgent');
+    this.elTimerCount.classList.remove('urgent');
+    this.elTimerCount.textContent = SELECT_DURATION;
+    this.moveBtns.forEach(b => b.classList.remove('selected', 'chosen'));
+  }
+
+  _showSkip() { this.btnContinue.hidden = false; }
+  _hideSkip() { this.btnContinue.hidden = true;  }
+
+  // ─── Headline ────────────────────────────────────────────
+  _headline(outcome) {
+    switch (outcome) {
+      case OUTCOMES.KILL_PLAYER:  return '▶ YOU ELIMINATED CPU';
+      case OUTCOMES.KILL_CPU:     return '▶ CPU ELIMINATED YOU';
+      case OUTCOMES.DUAL_DEFEAT:  return '✕ DUAL DEFEAT';
+      case OUTCOMES.POINT_PLAYER: return '+ YOU SCORE';
+      case OUTCOMES.POINT_CPU:    return '+ CPU SCORES';
+      case OUTCOMES.STANDOFF:     return '— STANDOFF';
+      default: return '';
+    }
+  }
+
+  // ─── Round log ───────────────────────────────────────────
+  _appendLog(snap) {
+    const entry = snap.log[0];
+    if (!entry) return;
+    const pm = LABELS[entry.playerMove];
+    const cm = LABELS[entry.cpuMove];
+
+    const row = document.createElement('div');
+    row.className = `log-row ${OUT_CLASS[entry.outcome] ?? ''}`;
+    row.innerHTML =
+      `<span class="log-round">R${entry.round}</span>` +
+      `<span class="log-moves">${pm.icon}${pm.label} <em>vs</em> ${cm.icon}${cm.label}</span>` +
+      `<span class="log-result">${this._headline(entry.outcome)}</span>`;
+
+    this.logList.prepend(row);
+    if (this.logList.children.length > 14) this.logList.lastChild?.remove();
+  }
+
+  _clearLog() { if (this.logList) this.logList.innerHTML = ''; }
+
+  // ─── Game Over ───────────────────────────────────────────
+  _showGameOver(state) {
+    const profileNow = this.game.getProfilePts();
+    const pot        = state.playerMatchPts + state.cpuMatchPts;
+    const memSize    = this.game.getCpuMemorySize();
+    this._renderProfile();  // refresh memory counter on menu too
+
+    const titleMap = { player: '— VICTORY —', cpu: '— DEFEATED —', dual_defeat: '— DUAL DEFEAT —' };
+    const clsMap   = { player: 'end-win',     cpu: 'end-lose',      dual_defeat: 'end-dual' };
+
+    this.elEndTitle.textContent = titleMap[state.winner] ?? 'GAME OVER';
+    this.elEndTitle.className   = `end-title ${clsMap[state.winner] ?? ''}`;
+
+    const ptsLine = state.winner === 'player'
+      ? `<tr class="pts-row"><td>Points Claimed</td><td class="col-win">+${state.ptsAwarded}</td></tr>`
+      : state.winner === 'dual_defeat'
+        ? `<tr class="pts-row"><td>Pot Burned</td><td class="col-dual">${pot} pts lost</td></tr>`
+        : `<tr class="pts-row"><td>Points Lost</td><td class="col-lose">${state.playerMatchPts}</td></tr>`;
+
+    this.elEndBody.innerHTML = `
+      <table class="stat-table">
+        <tr><td>Your Match Pts</td><td>${state.playerMatchPts}</td></tr>
+        <tr><td>CPU Match Pts</td><td>${state.cpuMatchPts}</td></tr>
+        <tr><td>Rounds Played</td><td>${state.round}</td></tr>
+        ${ptsLine}
+        <tr><td>CPU Rounds Learned</td><td>${memSize}</td></tr>
+      </table>`;
+
+    if (this.elEndProfile) this.elEndProfile.textContent = profileNow;
+
+    this._showScreen('gameover');
+  }
+
+  // ─── Screen switch ────────────────────────────────────────
+  _showScreen(name) {
+    Object.entries(this.screens).forEach(([key, el]) => {
+      if (el) el.hidden = key !== name;
+    });
+  }
+
+  // ─── Sound ───────────────────────────────────────────────
+  _playTone(outcome) {
+    try {
+      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      const c = {
+        [OUTCOMES.KILL_PLAYER]:  { f: 620, t: 'sine',     d: 0.45 },
+        [OUTCOMES.KILL_CPU]:     { f: 180, t: 'sawtooth', d: 0.55 },
+        [OUTCOMES.DUAL_DEFEAT]:  { f: 130, t: 'square',   d: 0.7  },
+        [OUTCOMES.POINT_PLAYER]: { f: 510, t: 'sine',     d: 0.18 },
+        [OUTCOMES.POINT_CPU]:    { f: 240, t: 'triangle', d: 0.18 },
+        [OUTCOMES.STANDOFF]:     { f: 350, t: 'sine',     d: 0.1  },
+      }[outcome] ?? { f: 350, t: 'sine', d: 0.15 };
+      osc.type = c.t;
+      osc.frequency.setValueAtTime(c.f, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + c.d);
+      osc.start(); osc.stop(ctx.currentTime + c.d);
+    } catch (_) {}
+  }
+}

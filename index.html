@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shoot Or Shield</title>
+  <meta name="description" content="Shoot Or Shield — a tactical survival duel. Accumulate points, then kill. Whoever dies loses everything." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     MENU SCREEN
+     ═══════════════════════════════════════ -->
+<section id="screen-menu" role="main" aria-label="Main menu">
+  <div class="menu-shell">
+
+    <header class="title-block">
+      <div class="game-title">SHOOT OR SHIELD</div>
+      <div class="game-mode">COMPUTER GAME MODE</div>
+    </header>
+
+    <div class="divider"></div>
+
+    <!-- Profile card -->
+    <div class="profile-card">
+      <div class="profile-header-row">
+        <div>
+          <div class="profile-label">YOUR PROFILE</div>
+          <div class="profile-pts-row">
+            <span class="profile-pts-value" id="profile-pts">0</span>
+            <span class="profile-pts-unit">pts</span>
+          </div>
+          <div class="profile-note">Points earned in Computer Mode</div>
+        </div>
+        <div class="cpu-memory-block">
+          <div class="cpu-mem-label">CPU MEMORY</div>
+          <div class="cpu-mem-value"><span id="cpu-memory-size">0</span> rounds</div>
+          <div class="cpu-mem-note">learned from you</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard card -->
+    <div class="leaderboard-card">
+      <div class="lb-header">
+        <span class="lb-title">PERSISTENT LEADERBOARD</span>
+        <span class="arm-badge" id="arm-badge-menu" style="display: none;">📱 ARM MOBILE MODE ACTIVE</span>
+      </div>
+      <div class="lb-rows">
+        <div class="lb-row" id="lb-row-player">
+          <span class="lb-rank">#1</span>
+          <span class="lb-name">YOU <span class="lb-crown" id="player-crown">👑</span></span>
+          <span class="lb-score"><span id="lb-player-pts">0</span> pts</span>
+        </div>
+        <div class="lb-row" id="lb-row-cpu">
+          <span class="lb-rank">#2</span>
+          <span class="lb-name">CPU <span class="lb-crown" id="cpu-crown">👑</span></span>
+          <span class="lb-score"><span id="lb-cpu-pts">0</span> pts</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Rules summary -->
+    <div class="rules-block">
+      <div class="rules-title">HOW IT WORKS</div>
+      <div class="rules-grid">
+        <div class="rule-row"><span class="rule-combo">⚡ vs ◎</span><span class="rule-effect win">KILL — shooter wins</span></div>
+        <div class="rule-row"><span class="rule-combo">⚡ vs 🛡</span><span class="rule-effect lose">DEFLECT — shield scores</span></div>
+        <div class="rule-row"><span class="rule-combo">🛡 vs ◎</span><span class="rule-effect lose">WASTE — idler scores</span></div>
+        <div class="rule-row"><span class="rule-combo">⚡ vs ⚡</span><span class="rule-effect dual">DUAL DEFEAT</span></div>
+        <div class="rule-row"><span class="rule-combo">🛡/◎ tie</span><span class="rule-effect muted">STANDOFF — no points</span></div>
+      </div>
+      <div class="rules-note">
+        Winner claims <strong>both players' match points</strong> as their reward.
+        The CPU's style is random and hidden. There are no rounds — play until someone dies.
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <button id="btn-start" class="btn-primary" aria-label="Start match">START MATCH</button>
+
+    <button id="btn-reset-profile" class="btn-ghost" aria-label="Reset CPU memory and profile">
+      Reset CPU Memory &amp; Profile
+    </button>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════
+     GAME SCREEN
+     ═══════════════════════════════════════ -->
+<section id="screen-game" hidden role="main" aria-label="Game arena">
+
+  <!-- HUD -->
+  <div class="hud-bar">
+    <div class="hud-side hud-player">
+      <span class="hud-label">YOU</span>
+      <span class="hud-pts" id="player-match-pts">0</span>
+      <span class="hud-units" id="player-units" title="Your resource units">○</span>
+      <span id="player-status" class="status-badge alive">ALIVE</span>
+    </div>
+
+    <div class="hud-center">
+      <div class="hud-pot" title="Total pot — winner claims all">
+        POT <span id="pot-total">0</span>
+      </div>
+      <div class="hud-round" id="hud-round">Round 1</div>
+      <div class="arm-badge-game" id="arm-badge-game" style="display: none;">📱 ARM-UI ACTIVE</div>
+    </div>
+
+    <div class="hud-side hud-cpu">
+      <span id="cpu-status" class="status-badge alive">ALIVE</span>
+      <span class="hud-units" id="cpu-units" title="CPU resource units">○</span>
+      <span class="hud-pts" id="cpu-match-pts">0</span>
+      <span class="hud-label">CPU</span>
+    </div>
+  </div>
+
+  <!-- Timer -->
+  <div class="timer-wrap" id="timer-wrap">
+    <div class="timer-bar-track">
+      <div class="timer-bar-fill" id="timer-bar"></div>
+    </div>
+    <div class="timer-row">
+      <span class="timer-label" id="timer-phase">SELECT YOUR MOVE</span>
+      <span class="timer-count" id="timer-count">10</span>
+    </div>
+    <div class="timer-selection" id="timer-selection">No move selected — IDLE will be chosen</div>
+  </div>
+
+  <!-- Arena -->
+  <div class="arena">
+
+    <!-- Move stage: both revealed simultaneously -->
+    <div class="move-stage">
+      <div class="move-panel" id="player-panel">
+        <div class="mp-label">YOUR MOVE</div>
+        <div class="move-display" id="player-move-display">?</div>
+      </div>
+
+      <div class="stage-vs">VS</div>
+
+      <div class="move-panel" id="cpu-panel">
+        <div class="mp-label">CPU MOVE</div>
+        <div class="move-display" id="cpu-move-display">?</div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-zone">
+      <div class="result-text" id="result-text" aria-live="assertive"></div>
+      <div class="result-desc" id="result-desc" aria-live="polite"></div>
+      <div class="reveal-timer" id="reveal-timer"></div>
+    </div>
+
+    <!-- Continue (skip reveal) -->
+    <button id="btn-continue" class="btn-continue" hidden aria-label="Skip to next round">SKIP →</button>
+
+    <!-- Move picker -->
+    <div class="move-picker" role="group" aria-label="Choose your move">
+      <button class="move-btn" data-move="shoot" id="btn-shoot" aria-label="Shoot">
+        <span class="move-icon">⚡</span>
+        <span class="move-name">SHOOT</span>
+        <span class="move-sub">1 unit · kills idler</span>
+      </button>
+      <button class="move-btn" data-move="shield" id="btn-shield" aria-label="Shield">
+        <span class="move-icon">🛡</span>
+        <span class="move-name">SHIELD</span>
+        <span class="move-sub">1 unit · deflects shot</span>
+      </button>
+      <button class="move-btn" data-move="idle" id="btn-idle" aria-label="Idle">
+        <span class="move-icon">◎</span>
+        <span class="move-name">IDLE</span>
+        <span class="move-sub">free · carries unit forward</span>
+      </button>
+    </div>
+
+  </div><!-- /arena -->
+
+  <!-- Round log -->
+  <aside class="log-panel" aria-label="Round history">
+    <div class="log-header">ROUND LOG</div>
+    <div id="round-log" class="round-log"></div>
+  </aside>
+
+</section>
+
+<!-- ═══════════════════════════════════════
+     GAME OVER SCREEN
+     ═══════════════════════════════════════ -->
+<section id="screen-gameover" hidden role="main" aria-label="Match result">
+  <div class="end-shell">
+
+    <div class="end-title" id="end-title">GAME OVER</div>
+    <div class="end-body"  id="end-body"></div>
+
+    <div class="end-profile">
+      <span class="end-profile-label">COMPUTER MODE PROFILE</span>
+      <span class="end-profile-pts"><span id="end-profile-pts">0</span> pts</span>
+    </div>
+
+    <div class="end-actions">
+      <button id="btn-play-again" class="btn-primary">PLAY AGAIN</button>
+      <button id="btn-main-menu"  class="btn-ghost">MAIN MENU</button>
+    </div>
+
+  </div>
+</section>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
