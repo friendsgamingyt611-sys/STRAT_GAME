@@ -14,7 +14,6 @@
  *
  * CPU style is NEVER revealed to the player.
  */
-console.log("UI.JS TOP-LEVEL EXECUTED");
 import { Phase } from './State.js';
 import { MOVES, OUTCOMES, Rules } from './Rules.js';
 

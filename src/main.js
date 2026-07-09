@@ -1,7 +1,6 @@
 /**
  * main.js — entry point
  */
-console.log("MAIN.JS TOP-LEVEL EXECUTED");
 import { Game } from './Game.js';
 import { UI }   from './UI.js';
 
