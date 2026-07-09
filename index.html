@@ -8,8 +8,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <!-- PeerJS for P2P multiplayer -->
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
 </head>
 <body>
+
+<!-- How to Play Top Bar -->
+<div class="top-nav-bar">
+  <button id="btn-how-to-play" class="btn-nav-tutorial">❓ How to Play</button>
+</div>
 
 <!-- ═══════════════════════════════════════
      MENU SCREEN
@@ -19,89 +26,142 @@
 
     <header class="title-block">
       <div class="game-title">SHOOT OR SHIELD</div>
-      <div class="game-mode">COMPUTER GAME MODE</div>
+      <div class="game-mode" id="menu-game-mode-subtitle">VS COMPUTER</div>
     </header>
 
     <div class="divider"></div>
 
-    <!-- Profile card -->
-    <div class="profile-card">
-      <div class="profile-header-row">
-        <div>
-          <div class="profile-label">YOUR PROFILE</div>
-          <div class="profile-pts-row">
-            <span class="profile-pts-value" id="profile-pts">0</span>
-            <span class="profile-pts-unit">pts</span>
+    <!-- Mode Tabs Selection -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tab-computer">VS COMPUTER</button>
+      <button class="mode-tab" id="tab-multiplayer">VS PLAYER (P2P)</button>
+    </div>
+
+    <!-- ──────────────────────────────────────────
+         VS COMPUTER MODE CONTENT
+         ────────────────────────────────────────── -->
+    <div id="mode-computer-content">
+      <!-- Profile card -->
+      <div class="profile-card">
+        <div class="profile-header-row">
+          <div>
+            <div class="profile-label">YOUR PROFILE</div>
+            <div class="profile-pts-row">
+              <span class="profile-pts-value" id="profile-pts">0</span>
+              <span class="profile-pts-unit">pts</span>
+            </div>
+            <div class="profile-note">Points earned in Computer Mode</div>
           </div>
-          <div class="profile-note">Points earned in Computer Mode</div>
-        </div>
-        <div class="cpu-memory-block">
-          <div class="cpu-mem-label">CPU MEMORY</div>
-          <div class="cpu-mem-value"><span id="cpu-memory-size">0</span> rounds</div>
-          <div class="cpu-mem-note">learned from you</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Leaderboard card -->
-    <div class="leaderboard-card">
-      <div class="lb-header">
-        <span class="lb-title">PERSISTENT LEADERBOARD</span>
-        <span class="arm-badge" id="arm-badge-menu" style="display: none;">📱 ARM MOBILE MODE ACTIVE</span>
-      </div>
-      <div class="lb-rows">
-        <div class="lb-row" id="lb-row-player">
-          <span class="lb-rank">#1</span>
-          <span class="lb-name">YOU <span class="lb-crown" id="player-crown">👑</span></span>
-          <span class="lb-score"><span id="lb-player-pts">0</span> pts</span>
-        </div>
-        <div class="lb-row" id="lb-row-cpu">
-          <span class="lb-rank">#2</span>
-          <span class="lb-name">CPU <span class="lb-crown" id="cpu-crown">👑</span></span>
-          <span class="lb-score"><span id="lb-cpu-pts">0</span> pts</span>
+          <div class="cpu-memory-block">
+            <div class="cpu-mem-label">CPU MEMORY</div>
+            <div class="cpu-mem-value"><span id="cpu-memory-size">0</span> rounds</div>
+            <div class="cpu-mem-note">learned from you</div>
+          </div>
         </div>
       </div>
+
+      <!-- Leaderboard card -->
+      <div class="leaderboard-card">
+        <div class="lb-header">
+          <span class="lb-title">PERSISTENT LEADERBOARD</span>
+        </div>
+        <div class="lb-rows">
+          <div class="lb-row" id="lb-row-player">
+            <span class="lb-rank">#1</span>
+            <span class="lb-name">YOU <span class="lb-crown" id="player-crown">👑</span></span>
+            <span class="lb-score"><span id="lb-player-pts">0</span> pts</span>
+          </div>
+          <div class="lb-row" id="lb-row-cpu">
+            <span class="lb-rank">#2</span>
+            <span class="lb-name">CPU <span class="lb-crown" id="cpu-crown">👑</span></span>
+            <span class="lb-score"><span id="lb-cpu-pts">0</span> pts</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tactic Analysis Card -->
+      <div class="tactic-card">
+        <div class="tactic-header">
+          <span class="tactic-title">PLAYSTYLE ANALYSIS</span>
+          <span class="tactic-badge" id="current-tactic">ANALYZING...</span>
+        </div>
+        <div class="canvas-container">
+          <canvas id="tactic-chart" width="220" height="190"></canvas>
+        </div>
+        <div class="tactic-footer">
+          Based on <span id="tactic-rounds">0</span> rounds of memory
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <button id="btn-start" class="btn-primary" aria-label="Start match">START MATCH</button>
+      <button id="btn-reset-profile" class="btn-ghost" aria-label="Reset CPU memory and profile">
+        Reset CPU Memory &amp; Profile
+      </button>
     </div>
 
-    <!-- Tactic Analysis Card -->
-    <div class="tactic-card">
-      <div class="tactic-header">
-        <span class="tactic-title">PLAYSTYLE ANALYSIS</span>
-        <span class="tactic-badge" id="current-tactic">ANALYZING...</span>
+    <!-- ──────────────────────────────────────────
+         VS MULTIPLAYER (P2P) MODE CONTENT
+         ────────────────────────────────────────── -->
+    <div id="mode-multiplayer-content" style="display: none;">
+      <!-- P2P Profile card -->
+      <div class="profile-card">
+        <div class="profile-header-row">
+          <div>
+            <div class="profile-label">P2P MULTIPLAYER PROFILE</div>
+            <div class="profile-pts-row">
+              <span class="profile-pts-value" id="p2p-profile-pts">0</span>
+              <span class="profile-pts-unit">pts</span>
+            </div>
+            <div class="profile-note">Points earned in P2P Multiplayer</div>
+          </div>
+        </div>
       </div>
-      <div class="canvas-container">
-        <canvas id="tactic-chart" width="220" height="190"></canvas>
+
+      <!-- P2P Leaderboard -->
+      <div class="leaderboard-card">
+        <div class="lb-header">
+          <span class="lb-title">P2P LEADERBOARD</span>
+        </div>
+        <div class="lb-rows">
+          <div class="lb-row" id="lb-row-p2p-player">
+            <span class="lb-rank">#1</span>
+            <span class="lb-name">YOU <span class="lb-crown" id="p2p-player-crown">👑</span></span>
+            <span class="lb-score"><span id="lb-p2p-player-pts">0</span> pts</span>
+          </div>
+          <div class="lb-row" id="lb-row-p2p-opponent">
+            <span class="lb-rank">#2</span>
+            <span class="lb-name">OPPONENTS <span class="lb-crown" id="p2p-opponent-crown">👑</span></span>
+            <span class="lb-score"><span id="lb-p2p-opponent-pts">0</span> pts</span>
+          </div>
+        </div>
       </div>
-      <div class="tactic-footer">
-        Based on <span id="tactic-rounds">0</span> rounds of memory
+
+      <!-- P2P Matchmaking setup -->
+      <div class="p2p-card">
+        <div class="p2p-card-header">P2P MATCHMAKING</div>
+        
+        <div class="p2p-section">
+          <button id="btn-p2p-create" class="btn-primary">CREATE MATCH</button>
+          <div id="p2p-create-status" class="p2p-status-text" style="display: none;"></div>
+        </div>
+
+        <div class="p2p-separator"><span>OR</span></div>
+
+        <div class="p2p-section join-section">
+          <input type="text" id="p2p-room-input" placeholder="ENTER 4-DIGIT CODE" maxlength="4" autocomplete="off" />
+          <button id="btn-p2p-join" class="btn-secondary">JOIN MATCH</button>
+          <div id="p2p-join-status" class="p2p-status-text" style="display: none;"></div>
+        </div>
       </div>
+
+      <div class="divider"></div>
+
+      <button id="btn-reset-p2p" class="btn-ghost" aria-label="Reset P2P Stats">
+        Reset Multiplayer Stats
+      </button>
     </div>
-
-    <div class="divider"></div>
-
-    <!-- Rules summary -->
-    <div class="rules-block">
-      <div class="rules-title">HOW IT WORKS</div>
-      <div class="rules-grid">
-        <div class="rule-row"><span class="rule-combo">⚡ vs ◎</span><span class="rule-effect win">KILL — shooter wins</span></div>
-        <div class="rule-row"><span class="rule-combo">⚡ vs 🛡</span><span class="rule-effect lose">DEFLECT — shield scores</span></div>
-        <div class="rule-row"><span class="rule-combo">🛡 vs ◎</span><span class="rule-effect lose">WASTE — idler scores</span></div>
-        <div class="rule-row"><span class="rule-combo">⚡ vs ⚡</span><span class="rule-effect dual">DUAL DEFEAT</span></div>
-        <div class="rule-row"><span class="rule-combo">🛡/◎ tie</span><span class="rule-effect muted">STANDOFF — no points</span></div>
-      </div>
-      <div class="rules-note">
-        Winner claims <strong>both players' match points</strong> as their reward.
-        The CPU's style is random and hidden. There are no rounds — play until someone dies.
-      </div>
-    </div>
-
-    <div class="divider"></div>
-
-    <button id="btn-start" class="btn-primary" aria-label="Start match">START MATCH</button>
-
-    <button id="btn-reset-profile" class="btn-ghost" aria-label="Reset CPU memory and profile">
-      Reset CPU Memory &amp; Profile
-    </button>
 
   </div>
 </section>
@@ -125,14 +185,13 @@
         POT <span id="pot-total">0</span>
       </div>
       <div class="hud-round" id="hud-round">Round 1</div>
-      <div class="arm-badge-game" id="arm-badge-game" style="display: none;">📱 ARM-UI ACTIVE</div>
     </div>
 
     <div class="hud-side hud-cpu">
       <span id="cpu-status" class="status-badge alive">ALIVE</span>
-      <span class="hud-units" id="cpu-units" title="CPU resource units">○</span>
+      <span class="hud-units" id="cpu-units" title="Opponent resource units">○</span>
       <span class="hud-pts" id="cpu-match-pts">0</span>
-      <span class="hud-label">CPU</span>
+      <span class="hud-label" id="opponent-hud-label">CPU</span>
     </div>
   </div>
 
@@ -161,7 +220,7 @@
       <div class="stage-vs">VS</div>
 
       <div class="move-panel" id="cpu-panel">
-        <div class="mp-label">CPU MOVE</div>
+        <div class="mp-label" id="opponent-move-label">CPU MOVE</div>
         <div class="move-display" id="cpu-move-display">?</div>
       </div>
     </div>
@@ -215,7 +274,7 @@
     <div class="end-body"  id="end-body"></div>
 
     <div class="end-profile">
-      <span class="end-profile-label">COMPUTER MODE PROFILE</span>
+      <span class="end-profile-label" id="end-profile-label">COMPUTER MODE PROFILE</span>
       <span class="end-profile-pts"><span id="end-profile-pts">0</span> pts</span>
     </div>
 
@@ -226,6 +285,65 @@
 
   </div>
 </section>
+
+<!-- ═══════════════════════════════════════
+     HOW TO PLAY SLIDESHOW TUTORIAL OVERLAY
+     ═══════════════════════════════════════ -->
+<div id="how-to-play-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-content">
+    <button id="btn-close-tutorial" class="modal-close-btn" aria-label="Close tutorial">×</button>
+    <div class="tutorial-slider">
+      <!-- Slide 1 -->
+      <div class="tutorial-slide active" data-slide="0">
+        <h3>1. Tactical Survival</h3>
+        <p>Shoot Or Shield is a survival duel that continues indefinitely until one player dies.</p>
+        <p class="tut-highlight">The goal isn't just to kill early; it's to force the opponent into wasting shields and idles to accumulate match points, then deliver the final strike to claim the entire pot!</p>
+        <div class="tut-visual">
+          <div class="tut-box">⚡ VS ◎ &rarr; KILL</div>
+        </div>
+      </div>
+      <!-- Slide 2 -->
+      <div class="tutorial-slide" data-slide="1" style="display: none;">
+        <h3>2. Match Rules</h3>
+        <p>In every round, both players simultaneously select one of the following moves:</p>
+        <ul class="tut-rules-list">
+          <li><strong>SHOOT (⚡)</strong>: Costs 1 resource unit. Eliminates an IDLE player.</li>
+          <li><strong>SHIELD (🛡)</strong>: Costs 1 resource unit. Deflects a SHOOT, scoring <strong>+1 match point</strong>.</li>
+          <li><strong>IDLE (◎)</strong>: Free. Carries unit forward. Scores <strong>+1 match point</strong> if the opponent shielded.</li>
+        </ul>
+      </div>
+      <!-- Slide 3 -->
+      <div class="tutorial-slide" data-slide="2" style="display: none;">
+        <h3>3. Matchup Matrix</h3>
+        <div class="rules-grid">
+          <div class="rule-row"><span class="rule-combo">⚡ vs ◎</span><span class="rule-effect win">KILL — shooter wins match</span></div>
+          <div class="rule-row"><span class="rule-combo">⚡ vs 🛡</span><span class="rule-effect score-p">DEFLECT — shield scores +1pt</span></div>
+          <div class="rule-row"><span class="rule-combo">🛡 vs ◎</span><span class="rule-effect score-i">WASTE — idle scores +1pt</span></div>
+          <div class="rule-row"><span class="rule-combo">⚡ vs ⚡</span><span class="rule-effect dual">DUAL DEFEAT — both die</span></div>
+          <div class="rule-row"><span class="rule-combo">🛡/◎ tie</span><span class="rule-effect muted">STANDOFF — no points</span></div>
+        </div>
+      </div>
+      <!-- Slide 4 -->
+      <div class="tutorial-slide" data-slide="3" style="display: none;">
+        <h3>4. Flow & Timer</h3>
+        <p>Every round has a <strong>10-second</strong> selection phase. You can vote for any move during this time. The selection active at 0s is automatically committed.</p>
+        <p>A <strong>5-second</strong> reveal phase shows both moves. You can skip it early by clicking the SKIP button.</p>
+        <p class="tut-highlight">If the match ends in your victory, your profile inherits the combined match points of both players!</p>
+      </div>
+    </div>
+    
+    <div class="tutorial-controls">
+      <button id="btn-tutorial-prev" class="btn-ghost" disabled>&larr; Prev</button>
+      <div class="tutorial-dots">
+        <span class="tut-dot active" data-slide="0"></span>
+        <span class="tut-dot" data-slide="1"></span>
+        <span class="tut-dot" data-slide="2"></span>
+        <span class="tut-dot" data-slide="3"></span>
+      </div>
+      <button id="btn-tutorial-next" class="btn-ghost">Next &rarr;</button>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="src/main.js"></script>
 </body>

@@ -15,22 +15,22 @@
  * CPU style is NEVER revealed to the player.
  */
 
-import { Phase }                   from './State.js';
-import { MOVES, OUTCOMES, Rules }  from './Rules.js';
+import { Phase } from './State.js';
+import { MOVES, OUTCOMES, Rules } from './Rules.js';
 
 const LABELS = {
-  [MOVES.SHOOT]:  { icon: '⚡', label: 'SHOOT',  sub: '1 unit · kills idler' },
+  [MOVES.SHOOT]: { icon: '⚡', label: 'SHOOT', sub: '1 unit · kills idler' },
   [MOVES.SHIELD]: { icon: '🛡', label: 'SHIELD', sub: '1 unit · deflects shot' },
-  [MOVES.IDLE]:   { icon: '◎', label: 'IDLE',   sub: 'free · carries unit' },
+  [MOVES.IDLE]: { icon: '◎', label: 'IDLE', sub: 'free · carries unit' },
 };
 
 const OUT_CLASS = {
-  [OUTCOMES.KILL_PLAYER]:  'outcome-kill-p',
-  [OUTCOMES.KILL_CPU]:     'outcome-kill-cpu',
-  [OUTCOMES.DUAL_DEFEAT]:  'outcome-dual',
+  [OUTCOMES.KILL_PLAYER]: 'outcome-kill-p',
+  [OUTCOMES.KILL_CPU]: 'outcome-kill-cpu',
+  [OUTCOMES.DUAL_DEFEAT]: 'outcome-dual',
   [OUTCOMES.POINT_PLAYER]: 'outcome-win',
-  [OUTCOMES.POINT_CPU]:    'outcome-lose',
-  [OUTCOMES.STANDOFF]:     'outcome-standoff',
+  [OUTCOMES.POINT_CPU]: 'outcome-lose',
+  [OUTCOMES.STANDOFF]: 'outcome-standoff',
 };
 
 const SELECT_DURATION = 10;   // seconds for move selection
@@ -38,16 +38,34 @@ const REVEAL_DURATION = 5;    // seconds for result display
 
 export class UI {
   constructor(game) {
-    this.game         = game;
+    this.game = game;
     this.selectedMove = null;   // currently highlighted move (not yet committed)
-    this._timer       = null;   // active interval handle
+    this._timer = null;   // active interval handle
     this._timerRemain = 0;
+
+    // Slide & P2P state initialization
+    this.currentSlideIndex = 0;
+    this.p2pPeer = null;
+    this.p2pConn = null;
+    this.p2pLocalMove = null;
+    this.p2pRemoteMove = null;
+    this.p2pIsHost = false;
+    this.p2pOpponentReady = false;
+    this.p2pLocalReady = false;
+    this.p2pLocalReadyRestart = false;
+    this.p2pOpponentReadyRestart = false;
 
     this._bind();
     this._attachListeners();
     this.game.state.subscribe(s => this._onStateChange(s));
     this._showScreen('menu');
     this._renderProfile();
+
+    // First time entry check
+    if (!localStorage.getItem('sos_first_time')) {
+      localStorage.setItem('sos_first_time', 'false');
+      setTimeout(() => this._openTutorial(), 500);
+    }
   }
 
   // ─── Element binding ─────────────────────────────────────
@@ -55,68 +73,138 @@ export class UI {
     const $ = id => document.getElementById(id);
 
     this.screens = {
-      menu:     $('screen-menu'),
-      game:     $('screen-game'),
+      menu: $('screen-menu'),
+      game: $('screen-game'),
       gameover: $('screen-gameover'),
     };
 
     // Menu
-    this.elProfilePts    = $('profile-pts');
-    this.btnStart        = $('btn-start');
+    this.elProfilePts = $('profile-pts');
+    this.btnStart = $('btn-start');
     this.btnResetProfile = $('btn-reset-profile');
 
     // Leaderboard
-    this.elLbPlayerPts   = $('lb-player-pts');
-    this.elLbCpuPts      = $('lb-cpu-pts');
-    this.elPlayerCrown   = $('player-crown');
-    this.elCpuCrown      = $('cpu-crown');
-    this.elArmBadgeMenu  = $('arm-badge-menu');
-    this.elArmBadgeGame  = $('arm-badge-game');
+    this.elLbPlayerPts = $('lb-player-pts');
+    this.elLbCpuPts = $('lb-cpu-pts');
+    this.elPlayerCrown = $('player-crown');
+    this.elCpuCrown = $('cpu-crown');
+    this.elArmBadgeMenu = $('arm-badge-menu');
+    this.elArmBadgeGame = $('arm-badge-game');
 
     // Timer UI
-    this.elTimerBar      = $('timer-bar');
-    this.elTimerCount    = $('timer-count');
-    this.elTimerPhase    = $('timer-phase');
-    this.elTimerSel      = $('timer-selection');
+    this.elTimerBar = $('timer-bar');
+    this.elTimerCount = $('timer-count');
+    this.elTimerPhase = $('timer-phase');
+    this.elTimerSel = $('timer-selection');
 
     // HUD
-    this.elRound         = $('hud-round');
+    this.elRound = $('hud-round');
     this.elPlayerMatchPts = $('player-match-pts');
-    this.elCpuMatchPts   = $('cpu-match-pts');
-    this.elPot           = $('pot-total');
-    this.elPlayerUnits   = $('player-units');
-    this.elCpuUnits      = $('cpu-units');
-    this.elPlayerStatus  = $('player-status');
-    this.elCpuStatus     = $('cpu-status');
+    this.elCpuMatchPts = $('cpu-match-pts');
+    this.elPot = $('pot-total');
+    this.elPlayerUnits = $('player-units');
+    this.elCpuUnits = $('cpu-units');
+    this.elPlayerStatus = $('player-status');
+    this.elCpuStatus = $('cpu-status');
 
     // Arena
-    this.elPlayerMove    = $('player-move-display');
-    this.elCpuMove       = $('cpu-move-display');
-    this.elResultText    = $('result-text');
-    this.elResultDesc    = $('result-desc');
-    this.elRevealTimer   = $('reveal-timer');
-    this.btnContinue     = $('btn-continue');
+    this.elPlayerMove = $('player-move-display');
+    this.elCpuMove = $('cpu-move-display');
+    this.elResultText = $('result-text');
+    this.elResultDesc = $('result-desc');
+    this.elRevealTimer = $('reveal-timer');
+    this.btnContinue = $('btn-continue');
 
     // Move picker
-    this.moveBtns        = document.querySelectorAll('[data-move]');
+    this.moveBtns = document.querySelectorAll('[data-move]');
 
     // Log
-    this.logList         = $('round-log');
+    this.logList = $('round-log');
 
     // Game over
-    this.elEndTitle      = $('end-title');
-    this.elEndBody       = $('end-body');
-    this.elEndProfile    = $('end-profile-pts');
-    this.btnPlayAgain    = $('btn-play-again');
-    this.btnMainMenu     = $('btn-main-menu');
+    this.elEndTitle = $('end-title');
+    this.elEndBody = $('end-body');
+    this.elEndProfile = $('end-profile-pts');
+    this.btnPlayAgain = $('btn-play-again');
+    this.btnMainMenu = $('btn-main-menu');
   }
 
   // ─── Listeners ───────────────────────────────────────────
   _attachListeners() {
+    // Mode tabs selection
+    this.tabComputer.addEventListener('click', () => {
+      this.tabComputer.classList.add('active');
+      this.tabMultiplayer.classList.remove('active');
+      this.modeComputerContent.style.display = 'block';
+      this.modeMultiplayerContent.style.display = 'none';
+      if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'VS COMPUTER';
+      this.game.switchToP2P(false);
+      this._renderProfile();
+    });
+
+    this.tabMultiplayer.addEventListener('click', () => {
+      this.tabMultiplayer.classList.add('active');
+      this.tabComputer.classList.remove('active');
+      this.modeComputerContent.style.display = 'none';
+      this.modeMultiplayerContent.style.display = 'block';
+      if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'VS PLAYER (P2P)';
+      this.game.switchToP2P(true);
+      this._renderProfile();
+    });
+
+    // P2P Matchmaking
+    this.btnP2PCreate.addEventListener('click', () => {
+      this._initP2PAsHost();
+    });
+
+    this.btnP2PJoin.addEventListener('click', () => {
+      this._joinP2P();
+    });
+
+    this.btnResetP2P.addEventListener('click', () => {
+      if (confirm('Reset your Multiplayer points?')) {
+        this.game.resetP2P();
+        this._renderProfile();
+      }
+    });
+
+    // Tutorial modal
+    this.btnHowToPlay.addEventListener('click', () => {
+      this._openTutorial();
+    });
+
+    this.btnCloseTutorial.addEventListener('click', () => {
+      this._closeTutorial();
+    });
+
+    this.btnTutorialPrev.addEventListener('click', () => {
+      this._showSlide(this.currentSlideIndex - 1);
+    });
+
+    this.btnTutorialNext.addEventListener('click', () => {
+      if (this.currentSlideIndex === this.tutorialSlides.length - 1) {
+        this._closeTutorial();
+      } else {
+        this._showSlide(this.currentSlideIndex + 1);
+      }
+    });
+
+    this.tutorialDots.forEach(dot => {
+      dot.addEventListener('click', () => {
+        const slideIdx = parseInt(dot.dataset.slide, 10);
+        this._showSlide(slideIdx);
+      });
+    });
+
+    // Start local computer match
     this.btnStart.addEventListener('click', () => {
+      if (this.game.isP2P) return;
       this.game.start();
       this._clearLog();
       this._showScreen('game');
+      // Set Labels to Computer Mode default
+      if (this.opponentHudLabel) this.opponentHudLabel.textContent = 'CPU';
+      if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = 'CPU MOVE';
       this._renderHUD(this.game.state.snapshot());
       this._beginSelectionPhase();
     });
@@ -146,15 +234,31 @@ export class UI {
     });
 
     this.btnPlayAgain.addEventListener('click', () => {
-      this.game.start();
-      this._clearLog();
-      this._showScreen('game');
-      this._renderHUD(this.game.state.snapshot());
-      this._beginSelectionPhase();
+      if (this.game.isP2P) {
+        this.p2pLocalReadyRestart = true;
+        this.p2pConn.send({ type: 'PLAY_AGAIN' });
+        this.btnPlayAgain.disabled = true;
+        this.btnPlayAgain.textContent = 'WAITING...';
+        if (this.p2pOpponentReadyRestart) {
+          this._restartP2PGame();
+        }
+      } else {
+        this.game.start();
+        this._clearLog();
+        this._showScreen('game');
+        // Set Labels
+        if (this.opponentHudLabel) this.opponentHudLabel.textContent = 'CPU';
+        if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = 'CPU MOVE';
+        this._renderHUD(this.game.state.snapshot());
+        this._beginSelectionPhase();
+      }
     });
 
     this.btnMainMenu.addEventListener('click', () => {
       this._clearTimer();
+      if (this.game.isP2P) {
+        this._disconnectP2P();
+      }
       this._renderProfile();
       this._showScreen('menu');
     });
@@ -224,15 +328,29 @@ export class UI {
 
     // Set timer UI to "processing"
     this.elTimerCount.textContent = '…';
-    this.elTimerBar.style.width   = '0%';
+    this.elTimerBar.style.width = '0%';
     this._setTimerPhase('REVEALING');
     if (this.elTimerSel) this.elTimerSel.textContent = '';
 
-    // Small delay for dramatic effect, then resolve
-    setTimeout(() => {
-      const snap = this.game.playTurn(move);
-      if (snap) this._showReveal(snap);
-    }, 200);
+    if (this.game.isP2P) {
+      this.p2pLocalMove = move;
+      try {
+        this.p2pConn.send({ type: 'MOVE', move: move });
+      } catch (err) {
+        console.error("Error sending move:", err);
+      }
+      this._setTimerPhase('WAITING FOR PEER');
+      if (this.elTimerSel) this.elTimerSel.textContent = 'Waiting for opponent…';
+      if (this.p2pRemoteMove !== null) {
+        this._resolveP2PTurn();
+      }
+    } else {
+      // Small delay for dramatic effect, then resolve
+      setTimeout(() => {
+        const snap = this.game.playTurn(move);
+        if (snap) this._showReveal(snap);
+      }, 200);
+    }
   }
 
   // ─── Reveal Phase (5 s) ──────────────────────────────────
@@ -241,10 +359,10 @@ export class UI {
     const cm = LABELS[snap.cpuMove];
 
     this.elPlayerMove.textContent = `${pm.icon} ${pm.label}`;
-    this.elCpuMove.textContent    = `${cm.icon} ${cm.label}`;
+    this.elCpuMove.textContent = `${cm.icon} ${cm.label}`;
 
     const cls = OUT_CLASS[snap.lastOutcome] ?? '';
-    this.elResultText.className   = `result-text ${cls}`;
+    this.elResultText.className = `result-text ${cls}`;
     this.elResultText.textContent = this._headline(snap.lastOutcome);
     this.elResultDesc.textContent = snap.lastDesc;
 
@@ -258,7 +376,7 @@ export class UI {
       // Game over — show skip button but no countdown
       this._setTimerPhase('MATCH OVER');
       this.elTimerCount.textContent = '';
-      this.elTimerBar.style.width   = '0%';
+      this.elTimerBar.style.width = '0%';
       if (this.elTimerSel) this.elTimerSel.textContent = 'Proceeding to results…';
       this._showSkip();
 
@@ -272,7 +390,7 @@ export class UI {
       // Normal round — show countdown to next round
       this._setTimerPhase('RESULT');
       this.elTimerCount.textContent = REVEAL_DURATION;
-      this.elTimerBar.style.width   = '100%';
+      this.elTimerBar.style.width = '100%';
       if (this.elTimerSel) this.elTimerSel.textContent = 'Next round starting…';
       this._showSkip();
 
@@ -292,13 +410,28 @@ export class UI {
     this._hideSkip();
     if (this.elRevealTimer) this.elRevealTimer.textContent = '';
 
-    this.game.advance();   // updates state (SELECTING or GAME_OVER)
-
-    if (this.game.state.phase === 'game_over') {
-      setTimeout(() => this._showGameOver(this.game.state.snapshot()), 50);
+    if (this.game.isP2P) {
+      this.p2pLocalReady = true;
+      this._setTimerPhase('WAITING FOR OPPONENT');
+      this.elTimerCount.textContent = '…';
+      if (this.elTimerSel) this.elTimerSel.textContent = 'Waiting for opponent to ready up…';
+      try {
+        this.p2pConn.send({ type: 'READY' });
+      } catch (err) {
+        console.error("Error sending READY:", err);
+      }
+      if (this.p2pOpponentReady) {
+        this._advanceP2PRound();
+      }
     } else {
-      // New selection phase
-      this._beginSelectionPhase();
+      this.game.advance();   // updates state (SELECTING or GAME_OVER)
+
+      if (this.game.state.phase === 'game_over') {
+        setTimeout(() => this._showGameOver(this.game.state.snapshot()), 50);
+      } else {
+        // New selection phase
+        this._beginSelectionPhase();
+      }
     }
   }
 
@@ -339,7 +472,7 @@ export class UI {
     const cPts = this.game.getCpuProfilePts();
 
     if (this.elProfilePts) this.elProfilePts.textContent = pPts;
-    
+
     // Show how much the CPU has learned
     const memEl = document.getElementById('cpu-memory-size');
     if (memEl) memEl.textContent = this.game.getCpuMemorySize();
@@ -383,24 +516,24 @@ export class UI {
 
   _renderPlaystyleTactic() {
     const currentTacticEl = document.getElementById('current-tactic');
-    const tacticRoundsEl  = document.getElementById('tactic-rounds');
-    const canvas          = document.getElementById('tactic-chart');
+    const tacticRoundsEl = document.getElementById('tactic-rounds');
+    const canvas = document.getElementById('tactic-chart');
 
-    const freq  = this.game.cpu._mem.freq;
-    const total = this.game.cpu._mem.total;
+    const freq = this.game.cpu._mem.freq;
+    const total = this.game.cpu._mem.total; angles
 
     if (tacticRoundsEl) tacticRoundsEl.textContent = total;
 
     // Identify current tactic
     let tactic = 'ANALYZING...';
     let badgeColor = 'var(--accent)';
-    let badgeBg    = 'rgba(234, 179, 8, 0.15)';
+    let badgeBg = 'rgba(234, 179, 8, 0.15)';
     let badgeBorder = 'rgba(234, 179, 8, 0.3)';
 
     if (total >= 3) {
-      const sRate  = (freq.shoot ?? 0) / total;
+      const sRate = (freq.shoot ?? 0) / total;
       const shRate = (freq.shield ?? 0) / total;
-      const iRate  = (freq.idle ?? 0) / total;
+      const iRate = (freq.idle ?? 0) / total;
 
       if (sRate > 0.45) {
         tactic = 'SLAYER ⚡';
@@ -490,9 +623,9 @@ export class UI {
 
     // Calculate rates and plot player playstyle state on the spider web
     if (total >= 3) {
-      const sRate  = (freq.shoot ?? 0) / total;
+      const sRate = (freq.shoot ?? 0) / total;
       const shRate = (freq.shield ?? 0) / total;
-      const iRate  = (freq.idle ?? 0) / total;
+      const iRate = (freq.idle ?? 0) / total;
 
       // Plot area connecting points on the 3 axes
       ctx.fillStyle = 'rgba(234, 179, 8, 0.15)';
@@ -534,16 +667,16 @@ export class UI {
   }
 
   _renderHUD(state) {
-    this.elRound.textContent           = `Round ${state.round}`;
-    this.elPlayerMatchPts.textContent  = state.playerMatchPts;
-    this.elCpuMatchPts.textContent     = state.cpuMatchPts;
+    this.elRound.textContent = `Round ${state.round}`;
+    this.elPlayerMatchPts.textContent = state.playerMatchPts;
+    this.elCpuMatchPts.textContent = state.cpuMatchPts;
     if (this.elPot) this.elPot.textContent = state.playerMatchPts + state.cpuMatchPts;
-    this.elPlayerUnits.textContent     = this._pips(state.playerUnits);
-    this.elCpuUnits.textContent        = this._pips(state.cpuUnits);
-    this.elPlayerStatus.textContent    = state.playerAlive ? 'ALIVE' : 'DEAD';
-    this.elPlayerStatus.className      = `status-badge ${state.playerAlive ? 'alive' : 'dead'}`;
-    this.elCpuStatus.textContent       = state.cpuAlive ? 'ALIVE' : 'DEAD';
-    this.elCpuStatus.className         = `status-badge ${state.cpuAlive ? 'alive' : 'dead'}`;
+    this.elPlayerUnits.textContent = this._pips(state.playerUnits);
+    this.elCpuUnits.textContent = this._pips(state.cpuUnits);
+    this.elPlayerStatus.textContent = state.playerAlive ? 'ALIVE' : 'DEAD';
+    this.elPlayerStatus.className = `status-badge ${state.playerAlive ? 'alive' : 'dead'}`;
+    this.elCpuStatus.textContent = state.cpuAlive ? 'ALIVE' : 'DEAD';
+    this.elCpuStatus.className = `status-badge ${state.cpuAlive ? 'alive' : 'dead'}`;
   }
 
   _pips(n) {
@@ -553,9 +686,9 @@ export class UI {
 
   _refreshMoveBtns() {
     this.moveBtns.forEach(btn => {
-      const move     = btn.dataset.move;
-      const canAct   = this.game.player.canAfford(move);
-      btn.disabled   = !canAct;
+      const move = btn.dataset.move;
+      const canAct = this.game.player.canAfford(move);
+      btn.disabled = !canAct;
       btn.classList.toggle('unaffordable', !canAct);
       btn.classList.toggle('selected', btn.dataset.move === this.selectedMove);
     });
@@ -570,13 +703,13 @@ export class UI {
 
   _resetArena() {
     this.elPlayerMove.textContent = '?';
-    this.elCpuMove.textContent    = '?';
+    this.elCpuMove.textContent = '?';
     this.elResultText.textContent = '';
     this.elResultDesc.textContent = '';
-    this.elResultText.className   = 'result-text';
+    this.elResultText.className = 'result-text';
     if (this.elRevealTimer) this.elRevealTimer.textContent = '';
     // Reset timer bar
-    this.elTimerBar.style.width   = '100%';
+    this.elTimerBar.style.width = '100%';
     this.elTimerBar.classList.remove('urgent');
     this.elTimerCount.classList.remove('urgent');
     this.elTimerCount.textContent = SELECT_DURATION;
@@ -584,17 +717,17 @@ export class UI {
   }
 
   _showSkip() { this.btnContinue.hidden = false; }
-  _hideSkip() { this.btnContinue.hidden = true;  }
+  _hideSkip() { this.btnContinue.hidden = true; }
 
   // ─── Headline ────────────────────────────────────────────
   _headline(outcome) {
     switch (outcome) {
-      case OUTCOMES.KILL_PLAYER:  return '▶ YOU ELIMINATED CPU';
-      case OUTCOMES.KILL_CPU:     return '▶ CPU ELIMINATED YOU';
-      case OUTCOMES.DUAL_DEFEAT:  return '✕ DUAL DEFEAT';
+      case OUTCOMES.KILL_PLAYER: return '▶ YOU ELIMINATED CPU';
+      case OUTCOMES.KILL_CPU: return '▶ CPU ELIMINATED YOU';
+      case OUTCOMES.DUAL_DEFEAT: return '✕ DUAL DEFEAT';
       case OUTCOMES.POINT_PLAYER: return '+ YOU SCORE';
-      case OUTCOMES.POINT_CPU:    return '+ CPU SCORES';
-      case OUTCOMES.STANDOFF:     return '— STANDOFF';
+      case OUTCOMES.POINT_CPU: return '+ CPU SCORES';
+      case OUTCOMES.STANDOFF: return '— STANDOFF';
       default: return '';
     }
   }
@@ -621,16 +754,38 @@ export class UI {
 
   // ─── Game Over ───────────────────────────────────────────
   _showGameOver(state) {
-    const profileNow = this.game.getProfilePts();
-    const pot        = state.playerMatchPts + state.cpuMatchPts;
-    const memSize    = this.game.getCpuMemorySize();
-    this._renderProfile();  // refresh memory counter on menu too
+    this._renderProfile();  // refresh points and memory counter
 
-    const titleMap = { player: '— VICTORY —', cpu: '— DEFEATED —', dual_defeat: '— DUAL DEFEAT —' };
-    const clsMap   = { player: 'end-win',     cpu: 'end-lose',      dual_defeat: 'end-dual' };
+    const isP2P = this.game.isP2P;
+    let profilePts = 0;
+    if (isP2P) {
+      const pSaved = localStorage.getItem('sos_p2p_profile_pts');
+      profilePts = pSaved !== null ? parseInt(pSaved, 10) : 0;
+
+      // Reset P2P Play Again button states
+      this.btnPlayAgain.disabled = false;
+      this.btnPlayAgain.textContent = 'PLAY AGAIN';
+      this.p2pLocalReadyRestart = false;
+      this.p2pOpponentReadyRestart = false;
+
+      const profileLabelEl = document.getElementById('end-profile-label');
+      if (profileLabelEl) profileLabelEl.textContent = 'MULTIPLAYER P2P PROFILE';
+    } else {
+      profilePts = this.game.getProfilePts();
+      const profileLabelEl = document.getElementById('end-profile-label');
+      if (profileLabelEl) profileLabelEl.textContent = 'COMPUTER MODE PROFILE';
+    }
+
+    const pot = state.playerMatchPts + state.cpuMatchPts;
+    const titleMap = { 
+      player: '— VICTORY —', 
+      cpu: '— DEFEATED —', 
+      dual_defeat: '— DUAL DEFEAT —' 
+    };
+    const clsMap = { player: 'end-win', cpu: 'end-lose', dual_defeat: 'end-dual' };
 
     this.elEndTitle.textContent = titleMap[state.winner] ?? 'GAME OVER';
-    this.elEndTitle.className   = `end-title ${clsMap[state.winner] ?? ''}`;
+    this.elEndTitle.className = `end-title ${clsMap[state.winner] ?? ''}`;
 
     const ptsLine = state.winner === 'player'
       ? `<tr class="pts-row"><td>Points Claimed</td><td class="col-win">+${state.ptsAwarded}</td></tr>`
@@ -638,16 +793,21 @@ export class UI {
         ? `<tr class="pts-row"><td>Pot Burned</td><td class="col-dual">${pot} pts lost</td></tr>`
         : `<tr class="pts-row"><td>Points Lost</td><td class="col-lose">${state.playerMatchPts}</td></tr>`;
 
+    const oppLabel = isP2P ? 'Opponent' : 'CPU';
+    const learnRow = isP2P 
+      ? '' 
+      : `<tr><td>CPU Rounds Learned</td><td>${this.game.getCpuMemorySize()}</td></tr>`;
+
     this.elEndBody.innerHTML = `
       <table class="stat-table">
         <tr><td>Your Match Pts</td><td>${state.playerMatchPts}</td></tr>
-        <tr><td>CPU Match Pts</td><td>${state.cpuMatchPts}</td></tr>
+        <tr><td>${oppLabel} Match Pts</td><td>${state.cpuMatchPts}</td></tr>
         <tr><td>Rounds Played</td><td>${state.round}</td></tr>
         ${ptsLine}
-        <tr><td>CPU Rounds Learned</td><td>${memSize}</td></tr>
+        ${learnRow}
       </table>`;
 
-    if (this.elEndProfile) this.elEndProfile.textContent = profileNow;
+    if (this.elEndProfile) this.elEndProfile.textContent = profilePts;
 
     this._showScreen('gameover');
   }
@@ -662,23 +822,228 @@ export class UI {
   // ─── Sound ───────────────────────────────────────────────
   _playTone(outcome) {
     try {
-      const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-      const osc  = ctx.createOscillator();
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
       const c = {
-        [OUTCOMES.KILL_PLAYER]:  { f: 620, t: 'sine',     d: 0.45 },
-        [OUTCOMES.KILL_CPU]:     { f: 180, t: 'sawtooth', d: 0.55 },
-        [OUTCOMES.DUAL_DEFEAT]:  { f: 130, t: 'square',   d: 0.7  },
-        [OUTCOMES.POINT_PLAYER]: { f: 510, t: 'sine',     d: 0.18 },
-        [OUTCOMES.POINT_CPU]:    { f: 240, t: 'triangle', d: 0.18 },
-        [OUTCOMES.STANDOFF]:     { f: 350, t: 'sine',     d: 0.1  },
+        [OUTCOMES.KILL_PLAYER]: { f: 620, t: 'sine', d: 0.45 },
+        [OUTCOMES.KILL_CPU]: { f: 180, t: 'sawtooth', d: 0.55 },
+        [OUTCOMES.DUAL_DEFEAT]: { f: 130, t: 'square', d: 0.7 },
+        [OUTCOMES.POINT_PLAYER]: { f: 510, t: 'sine', d: 0.18 },
+        [OUTCOMES.POINT_CPU]: { f: 240, t: 'triangle', d: 0.18 },
+        [OUTCOMES.STANDOFF]: { f: 350, t: 'sine', d: 0.1 },
       }[outcome] ?? { f: 350, t: 'sine', d: 0.15 };
       osc.type = c.t;
       osc.frequency.setValueAtTime(c.f, ctx.currentTime);
       gain.gain.setValueAtTime(0.12, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + c.d);
       osc.start(); osc.stop(ctx.currentTime + c.d);
-    } catch (_) {}
+    } catch (_) { }
+  // ─── P2P Multiplayer Handlers ─────────────────────────────
+  _resolveP2PTurn() {
+    this._clearTimer();
+    this.elTimerCount.textContent = '…';
+    this.elTimerBar.style.width = '0%';
+    this._setTimerPhase('REVEALING');
+    
+    setTimeout(() => {
+      const snap = this.game.playP2PTurn(this.p2pLocalMove, this.p2pRemoteMove);
+      this.p2pLocalMove = null;
+      this.p2pRemoteMove = null;
+      if (snap) this._showReveal(snap);
+    }, 200);
+  }
+
+  _advanceP2PRound() {
+    this.p2pLocalReady = false;
+    this.p2pOpponentReady = false;
+    this.game.advance();
+
+    if (this.game.state.phase === 'game_over') {
+      setTimeout(() => this._showGameOver(this.game.state.snapshot()), 50);
+    } else {
+      this._beginSelectionPhase();
+    }
+  }
+
+  _restartP2PGame() {
+    this.p2pLocalReadyRestart = false;
+    this.p2pOpponentReadyRestart = false;
+    this.game.start();
+    this._clearLog();
+    this._showScreen('game');
+    this._renderHUD(this.game.state.snapshot());
+    this._beginSelectionPhase();
+  }
+
+  _initP2PAsHost() {
+    this.p2pIsHost = true;
+    this.p2pCreateStatus.style.display = 'block';
+    this.p2pCreateStatus.textContent = 'Initializing PeerJS...';
+    this.btnP2PCreate.disabled = true;
+    this.btnP2PJoin.disabled = true;
+
+    // Use PeerJS with random 4-digit code ID mapping
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    // We append prefix to peer ID to make it distinct on global directory
+    this.p2pPeer = new Peer('sos-room-' + code);
+
+    this.p2pPeer.on('open', () => {
+      this.p2pCreateStatus.innerHTML = `ROOM CODE: <strong style="font-size:1.15rem; color:var(--accent);">${code}</strong><br><span style="font-size:0.75rem; color:var(--muted)">Share this code with your friend to start.</span>`;
+    });
+
+    this.p2pPeer.on('connection', (conn) => {
+      this.p2pConn = conn;
+      this._setupP2PConnection(conn);
+    });
+
+    this.p2pPeer.on('error', (err) => {
+      console.error(err);
+      this.p2pCreateStatus.textContent = 'Connection Error. Retrying...';
+      this.btnP2PCreate.disabled = false;
+      this.btnP2PJoin.disabled = false;
+    });
+  }
+
+  _joinP2P() {
+    const code = this.p2pRoomInput.value.trim();
+    if (!code || code.length !== 4) {
+      this.p2pJoinStatus.style.display = 'block';
+      this.p2pJoinStatus.textContent = 'Enter a valid 4-digit code.';
+      return;
+    }
+
+    this.p2pIsHost = false;
+    this.p2pJoinStatus.style.display = 'block';
+    this.p2pJoinStatus.textContent = `Connecting to room ${code}...`;
+    this.btnP2PCreate.disabled = true;
+    this.btnP2PJoin.disabled = true;
+
+    this.p2pPeer = new Peer();
+
+    this.p2pPeer.on('open', () => {
+      const conn = this.p2pPeer.connect('sos-room-' + code);
+      this.p2pConn = conn;
+      this._setupP2PConnection(conn);
+    });
+
+    this.p2pPeer.on('error', (err) => {
+      console.error(err);
+      this.p2pJoinStatus.textContent = 'Failed to connect. Try again.';
+      this.btnP2PCreate.disabled = false;
+      this.btnP2PJoin.disabled = false;
+    });
+  }
+
+  _setupP2PConnection(conn) {
+    conn.on('open', () => {
+      const statusText = this.p2pIsHost ? this.p2pCreateStatus : this.p2pJoinStatus;
+      statusText.textContent = 'CONNECTED! Loading Arena...';
+
+      setTimeout(() => {
+        // Reset matchmaking controls
+        this.btnP2PCreate.disabled = false;
+        this.btnP2PJoin.disabled = false;
+        this.p2pCreateStatus.style.display = 'none';
+        this.p2pJoinStatus.style.display = 'none';
+
+        // Clear previous state
+        this.p2pLocalMove = null;
+        this.p2pRemoteMove = null;
+        this.p2pLocalReady = false;
+        this.p2pOpponentReady = false;
+        this.p2pLocalReadyRestart = false;
+        this.p2pOpponentReadyRestart = false;
+
+        this.game.switchToP2P(true);
+        this.game.start();
+
+        // Update Opponent Labels dynamically
+        if (this.opponentHudLabel) this.opponentHudLabel.textContent = 'PLAYER 2';
+        if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = 'OPPONENT MOVE';
+
+        this._clearLog();
+        this._showScreen('game');
+        this._renderHUD(this.game.state.snapshot());
+        this._beginSelectionPhase();
+      }, 1500);
+    });
+
+    conn.on('data', (data) => {
+      if (data.type === 'MOVE') {
+        this.p2pRemoteMove = data.move;
+        if (this.p2pLocalMove !== null) {
+          this._resolveP2PTurn();
+        }
+      } else if (data.type === 'READY') {
+        this.p2pOpponentReady = true;
+        if (this.p2pLocalReady) {
+          this._advanceP2PRound();
+        }
+      } else if (data.type === 'PLAY_AGAIN') {
+        this.p2pOpponentReadyRestart = true;
+        if (this.p2pLocalReadyRestart) {
+          this._restartP2PGame();
+        }
+      } else if (data.type === 'DISCONNECT') {
+        this._handleP2PDisconnect();
+      }
+    });
+
+    conn.on('close', () => {
+      this._handleP2PDisconnect();
+    });
+  }
+
+  _disconnectP2P() {
+    if (this.p2pConn) {
+      try {
+        this.p2pConn.send({ type: 'DISCONNECT' });
+        this.p2pConn.close();
+      } catch(e){}
+      this.p2pConn = null;
+    }
+    if (this.p2pPeer) {
+      try { this.p2pPeer.destroy(); } catch(e){}
+      this.p2pPeer = null;
+    }
+    this.game.switchToP2P(false);
+  }
+
+  _handleP2PDisconnect() {
+    alert('Opponent disconnected or left match.');
+    this._disconnectP2P();
+    this._renderProfile();
+    this._showScreen('menu');
+  }
+
+  // ─── Tutorial Slideshow ───────────────────────────────────
+  _showSlide(index) {
+    if (index < 0 || index >= this.tutorialSlides.length) return;
+    this.tutorialSlides.forEach((slide, idx) => {
+      slide.style.display = idx === index ? 'block' : 'none';
+      slide.classList.toggle('active', idx === index);
+    });
+    this.tutorialDots.forEach((dot, idx) => {
+      dot.classList.toggle('active', idx === index);
+    });
+    this.btnTutorialPrev.disabled = (index === 0);
+    this.btnTutorialNext.textContent = (index === this.tutorialSlides.length - 1) ? 'Finish' : 'Next →';
+    this.currentSlideIndex = index;
+  }
+
+  _openTutorial() {
+    if (this.howToPlayModal) {
+      this.howToPlayModal.style.display = 'flex';
+      this._showSlide(0);
+    }
+  }
+
+  _closeTutorial() {
+    if (this.howToPlayModal) {
+      this.howToPlayModal.style.display = 'none';
+    }
   }
 }

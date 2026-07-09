@@ -9,14 +9,13 @@
 
 import { Rules } from './Rules.js';
 
-const PROFILE_KEY = 'sos_profile_pts';
-
 export class Player {
-  constructor(name = 'Player') {
+  constructor(name = 'Player', profileKey = 'sos_profile_pts') {
     this.name = name;
+    this.profileKey = profileKey;
 
     // Load profile pts from localStorage (human player only)
-    const saved = localStorage.getItem(PROFILE_KEY);
+    const saved = localStorage.getItem(this.profileKey);
     this.profilePts = saved !== null ? parseInt(saved, 10) : 0;
 
     this.matchPts  = 0;
@@ -28,12 +27,12 @@ export class Player {
   // ─── Profile ───────────────────────────────────────
   addToProfile(pts) {
     this.profilePts += pts;
-    localStorage.setItem(PROFILE_KEY, this.profilePts);
+    localStorage.setItem(this.profileKey, this.profilePts);
   }
 
   resetProfile() {
     this.profilePts = 0;
-    localStorage.removeItem(PROFILE_KEY);
+    localStorage.removeItem(this.profileKey);
   }
 
   // ─── Match ─────────────────────────────────────────

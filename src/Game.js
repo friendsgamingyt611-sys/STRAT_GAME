@@ -16,10 +16,23 @@ import { State, Phase }            from './State.js';
 
 export class Game {
   constructor() {
-    this.player          = new Player('You');
+    this.player          = new Player('You', 'sos_profile_pts');
     this.cpu             = new AI();
     this.state           = new State();
     this._lastPlayerMove = null;   // for transition learning
+    this.isP2P           = false;
+  }
+
+  /** Switch between P2P and Computer Game modes */
+  switchToP2P(isP2P) {
+    this.isP2P = isP2P;
+    if (isP2P) {
+      this.player = new Player('You', 'sos_p2p_profile_pts');
+      this.cpu    = new Player('Opponent', 'sos_p2p_opponent_pts');
+    } else {
+      this.player = new Player('You', 'sos_profile_pts');
+      this.cpu    = new AI();
+    }
   }
 
   /** Start / restart a match (CPU memory is NOT cleared here) */
@@ -97,6 +110,49 @@ export class Game {
   }
 
   /**
+   * Called by UI when both players in P2P mode have committed a move.
+   * @param {string} playerMove
+   * @param {string} opponentMove
+   * @returns {object|null} state snapshot
+   */
+  playP2PTurn(playerMove, opponentMove) {
+    if (this.state.phase !== Phase.SELECTING) return null;
+
+    this.state.setPhase(Phase.REVEALING);
+
+    // Deduct units
+    this.player.commitMove(playerMove);
+    this.cpu.commitMove(opponentMove);
+    this.state.playerUnits = this.player.units;
+    this.state.cpuUnits    = this.cpu.units;
+
+    // Resolve win/loss
+    const result = Rules.resolve(playerMove, opponentMove);
+
+    // Apply points
+    if (result.playerPt) { this.player.addMatchPt(); this.state.playerMatchPts++; }
+    if (result.cpuPt)    { this.cpu.addMatchPt();    this.state.cpuMatchPts++;    }
+
+    // Apply deaths
+    if (result.playerDies) this.player.die();
+    if (result.cpuDies)    this.cpu.die();
+
+    // Push to state
+    this.state.applyRound({
+      playerMove,
+      cpuMove:    opponentMove,
+      outcome:    result.outcome,
+      desc:       result.desc,
+      playerPt:   false,
+      cpuPt:      false,
+      playerDies: result.playerDies,
+      cpuDies:    result.cpuDies,
+    });
+
+    return this.state.snapshot();
+  }
+
+  /**
    * Called by UI after the reveal timer expires.
    * Resolves game-over OR starts the next round.
    */
@@ -107,7 +163,7 @@ export class Game {
       return;
     }
 
-    // Player killed CPU
+    // Player killed CPU / Opponent
     if (!this.cpu.alive) {
       const pot = this.player.matchPts + this.cpu.matchPts;
       this.player.addToProfile(pot);
@@ -115,7 +171,7 @@ export class Game {
       return;
     }
 
-    // CPU killed player
+    // CPU / Opponent killed player
     if (!this.player.alive) {
       const pot = this.player.matchPts + this.cpu.matchPts;
       this.cpu.addToProfile(pot);
@@ -133,7 +189,9 @@ export class Game {
   getProfilePts() { return this.player.profilePts; }
   getCpuProfilePts() { return this.cpu.profilePts; }
 
-  getCpuMemorySize() { return this.cpu.getMemorySize(); }
+  getCpuMemorySize() { 
+    return this.isP2P ? 0 : this.cpu.getMemorySize(); 
+  }
 
   /**
    * Reset BOTH player profile AND CPU learned memory AND CPU profile pts.
@@ -142,6 +200,17 @@ export class Game {
   resetAll() {
     this.player.resetProfile();
     this.cpu.resetProfile();
-    this.cpu.resetMemory();
+    if (!this.isP2P) {
+      this.cpu.resetMemory();
+    }
+  }
+
+  resetP2P() {
+    localStorage.removeItem('sos_p2p_profile_pts');
+    localStorage.removeItem('sos_p2p_opponent_pts');
+    if (this.isP2P) {
+      this.player.resetProfile();
+      this.cpu.resetProfile();
+    }
   }
 }
