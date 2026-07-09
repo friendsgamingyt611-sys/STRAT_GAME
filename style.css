@@ -69,12 +69,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .btn-ghost {
   display: block; width: 100%;
-  padding: 0.65rem 1rem;
+  padding: 0.75rem 1rem;
   background: transparent;
   border: 1px solid var(--border);
   color: var(--muted);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   letter-spacing: 0.1em;
   border-radius: var(--r);
   text-align: center;
@@ -137,7 +137,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .profile-label {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.78rem;
   letter-spacing: 0.2em;
   color: var(--muted);
   margin-bottom: 0.5rem;
@@ -161,8 +161,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .profile-note {
   margin-top: 0.35rem;
-  font-size: 0.68rem;
-  color: var(--dim);
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .profile-header-row {
@@ -179,7 +179,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .cpu-mem-label {
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: 0.78rem;
   letter-spacing: 0.18em;
   color: var(--muted);
   margin-bottom: 0.3rem;
@@ -196,8 +196,8 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 
 .cpu-mem-note {
-  font-size: 0.62rem;
-  color: var(--dim);
+  font-size: 0.78rem;
+  color: var(--muted);
   margin-top: 0.2rem;
 }
 
@@ -206,7 +206,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .rules-title {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.78rem;
   letter-spacing: 0.2em;
   color: var(--muted);
 }
@@ -264,9 +264,28 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   font-family: var(--font-mono);
 }
 
-.hud-label { font-size: 0.62rem; letter-spacing: 0.16em; color: var(--muted); }
-.hud-pts   { font-size: 1.8rem; line-height: 1; color: var(--text); min-width: 2ch; text-align: center; }
-.hud-units { font-size: 0.72rem; color: var(--accent); letter-spacing: 0.04em; }
+.hud-label { font-size: 0.85rem; letter-spacing: 0.16em; color: var(--muted); }
+.hud-pts   { font-size: 2.0rem; line-height: 1; color: var(--text); min-width: 2ch; text-align: center; }
+.hud-units {
+  display: flex !important;
+  align-items: center;
+  gap: 3px;
+}
+
+.unit-pip {
+  width: 9px;
+  height: 13px;
+  background-color: var(--win); /* Green resource box */
+  border-radius: 1.5px;
+  box-shadow: 0 0 4px rgba(92, 184, 122, 0.4);
+  transition: all 0.2s ease;
+}
+
+.unit-pip.empty {
+  background-color: transparent;
+  border: 1.2px dashed rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+}
 
 .hud-center {
   display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
@@ -275,20 +294,20 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .hud-pot {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.85rem;
   color: var(--muted);
   letter-spacing: 0.1em;
 }
 
 .hud-pot span {
   color: var(--accent);
-  font-size: 1.1rem;
+  font-size: 1.3rem;
 }
 
 .hud-round {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
-  color: var(--dim);
+  font-size: 0.95rem;
+  color: var(--text);
   letter-spacing: 0.08em;
 }
 
@@ -664,7 +683,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .lb-title {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.78rem;
   letter-spacing: 0.18em;
   color: var(--muted);
 }
@@ -842,14 +861,14 @@ body.phone-arm-ui .log-panel {
 
 .tactic-title {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.78rem;
   letter-spacing: 0.18em;
   color: var(--muted);
 }
 
 .tactic-badge {
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: 0.72rem;
   background: rgba(234, 179, 8, 0.15);
   color: var(--accent);
   border: 1px solid rgba(234, 179, 8, 0.3);
@@ -875,8 +894,8 @@ body.phone-arm-ui .log-panel {
 
 .tactic-footer {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
-  color: var(--dim);
+  font-size: 0.78rem;
+  color: var(--muted);
   text-align: center;
 }
 
@@ -922,9 +941,9 @@ body.phone-arm-ui .log-panel {
 .mode-tab {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   letter-spacing: 0.08em;
-  padding: 0.45rem;
+  padding: 0.55rem;
   border-radius: var(--r);
   color: var(--muted);
   transition: all 0.12s ease;
@@ -1193,6 +1212,33 @@ body.phone-arm-ui .log-panel {
   width: 70px;
   font-size: 0.72rem;
   color: var(--muted);
+}
+
+/* Top Notch Banner */
+.top-notch-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent); /* gold accent */
+  color: #0c0c0e;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding: 0.7rem 2.2rem;
+  border-bottom-left-radius: var(--r2);
+  border-bottom-right-radius: var(--r2);
+  box-shadow: 0 4px 20px rgba(234, 179, 8, 0.4);
+  z-index: 10000;
+  letter-spacing: 0.05em;
+  text-align: center;
+  transition: all 0.3s ease;
+  animation: slide-notch-down 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slide-notch-down {
+  0% { transform: translate(-50%, -100%); }
+  100% { transform: translate(-50%, 0); }
 }
 
 

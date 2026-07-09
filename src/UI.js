@@ -108,7 +108,13 @@ export class UI {
     this.p2pCreateStatus      = $('p2p-create-status');
     this.btnP2PJoin           = $('btn-p2p-join');
     this.p2pRoomInput         = $('p2p-room-input');
-    this.p2pJoinStatus        = $('p2p-join-status');
+    this.p2pJoinStatus = $('p2p-join-status');
+
+    // P2P Match start & countdown states
+    this.p2pLocalStart = false;
+    this.p2pRemoteStart = false;
+    this.p2pCountdownValue = 5;
+    this.p2pCountdownInterval = null;
 
     // Dynamic Labels
     this.opponentHudLabel     = $('opponent-hud-label');
@@ -170,6 +176,7 @@ export class UI {
       this.modeComputerContent.style.display = 'block';
       this.modeMultiplayerContent.style.display = 'none';
       if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'VS COMPUTER';
+      this._disconnectP2P();
       this.game.switchToP2P(false);
       this._renderProfile();
     });
@@ -180,17 +187,26 @@ export class UI {
       this.modeComputerContent.style.display = 'none';
       this.modeMultiplayerContent.style.display = 'block';
       if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'VS PLAYER (P2P)';
+      this._resetP2PLobbyUI();
       this.game.switchToP2P(true);
       this._renderProfile();
     });
 
     // P2P Matchmaking
     this.btnP2PCreate.addEventListener('click', () => {
-      this._initP2PAsHost();
+      if (this.p2pConn) {
+        this._handleP2PStartClick();
+      } else {
+        this._initP2PAsHost();
+      }
     });
 
     this.btnP2PJoin.addEventListener('click', () => {
-      this._joinP2P();
+      if (this.p2pConn) {
+        this._handleP2PStartClick();
+      } else {
+        this._joinP2P();
+      }
     });
 
     this.btnResetP2P.addEventListener('click', () => {
@@ -599,9 +615,21 @@ export class UI {
 
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
+
+    const dpr = window.devicePixelRatio || 1;
+    const displayWidth = 220;
+    const displayHeight = 190;
+
+    canvas.width = displayWidth * dpr;
+    canvas.height = displayHeight * dpr;
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+    const w = displayWidth;
+    const h = displayHeight;
 
     // Center & radius of radar chart
     const cx = w / 2;
@@ -703,17 +731,40 @@ export class UI {
     this.elPlayerMatchPts.textContent = state.playerMatchPts;
     this.elCpuMatchPts.textContent = state.cpuMatchPts;
     if (this.elPot) this.elPot.textContent = state.playerMatchPts + state.cpuMatchPts;
-    this.elPlayerUnits.textContent = this._pips(state.playerUnits);
-    this.elCpuUnits.textContent = this._pips(state.cpuUnits);
+    this._renderResourceBar(this.elPlayerUnits, state.playerUnits);
+    this._renderResourceBar(this.elCpuUnits, state.cpuUnits);
     this.elPlayerStatus.textContent = state.playerAlive ? 'ALIVE' : 'DEAD';
     this.elPlayerStatus.className = `status-badge ${state.playerAlive ? 'alive' : 'dead'}`;
     this.elCpuStatus.textContent = state.cpuAlive ? 'ALIVE' : 'DEAD';
     this.elCpuStatus.className = `status-badge ${state.cpuAlive ? 'alive' : 'dead'}`;
   }
 
-  _pips(n) {
-    if (n <= 0) return '○';
-    return '●'.repeat(Math.min(n, 6)) + (n > 6 ? `+${n - 6}` : '');
+  _renderResourceBar(el, count) {
+    if (!el) return;
+    el.innerHTML = '';
+
+    if (count <= 0) {
+      const pip = document.createElement('div');
+      pip.className = 'unit-pip empty';
+      el.appendChild(pip);
+      return;
+    }
+
+    const maxPips = Math.min(count, 8);
+    for (let i = 0; i < maxPips; i++) {
+      const pip = document.createElement('div');
+      pip.className = 'unit-pip';
+      el.appendChild(pip);
+    }
+
+    if (count > 8) {
+      const more = document.createElement('span');
+      more.style.fontSize = '9px';
+      more.style.color = 'var(--muted)';
+      more.style.marginLeft = '2px';
+      more.textContent = `+${count - 8}`;
+      el.appendChild(more);
+    }
   }
 
   _refreshMoveBtns() {
@@ -920,12 +971,12 @@ export class UI {
 
     // Use PeerJS with random 4-digit code ID mapping
     const code = Math.floor(1000 + Math.random() * 9000).toString();
-    
+
     // We append prefix to peer ID to make it distinct on global directory
     this.p2pPeer = new Peer('sos-room-' + code);
 
     this.p2pPeer.on('open', () => {
-      this.p2pCreateStatus.innerHTML = `ROOM CODE: <strong style="font-size:1.15rem; color:var(--accent);">${code}</strong><br><span style="font-size:0.75rem; color:var(--muted)">Share this code with your friend to start.</span>`;
+      this.p2pCreateStatus.innerHTML = `ROOM CODE: <strong style="font-size:1.15rem; color:var(--accent);">${code}</strong><br><span style="font-size:0.75rem; color:var(--muted)">Waiting for opponent to join...</span>`;
     });
 
     this.p2pPeer.on('connection', (conn) => {
@@ -973,40 +1024,26 @@ export class UI {
 
   _setupP2PConnection(conn) {
     conn.on('open', () => {
-      const statusText = this.p2pIsHost ? this.p2pCreateStatus : this.p2pJoinStatus;
-      statusText.textContent = 'CONNECTED! Loading Arena...';
+      this.p2pLocalStart = false;
+      this.p2pRemoteStart = false;
+      this._stopP2PCountdown();
 
-      setTimeout(() => {
-        // Reset matchmaking controls
-        this.btnP2PCreate.disabled = false;
-        this.btnP2PJoin.disabled = false;
-        this.p2pCreateStatus.style.display = 'none';
-        this.p2pJoinStatus.style.display = 'none';
+      this.p2pLocalMove = null;
+      this.p2pRemoteMove = null;
+      this.p2pLocalReady = false;
+      this.p2pOpponentReady = false;
+      this.p2pLocalReadyRestart = false;
+      this.p2pOpponentReadyRestart = false;
 
-        // Clear previous state
-        this.p2pLocalMove = null;
-        this.p2pRemoteMove = null;
-        this.p2pLocalReady = false;
-        this.p2pOpponentReady = false;
-        this.p2pLocalReadyRestart = false;
-        this.p2pOpponentReadyRestart = false;
-
-        this.game.switchToP2P(true);
-        this.game.start();
-
-        // Update Opponent Labels dynamically
-        if (this.opponentHudLabel) this.opponentHudLabel.textContent = 'PLAYER 2';
-        if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = 'OPPONENT MOVE';
-
-        this._clearLog();
-        this._showScreen('game');
-        this._renderHUD(this.game.state.snapshot());
-        this._beginSelectionPhase();
-      }, 1500);
+      this._updateP2PLobbyUI();
     });
 
     conn.on('data', (data) => {
-      if (data.type === 'MOVE') {
+      if (data.type === 'START_CLICK') {
+        this.p2pRemoteStart = data.start;
+        this._checkP2PStartCountdown();
+        this._updateP2PLobbyUI();
+      } else if (data.type === 'MOVE') {
         this.p2pRemoteMove = data.move;
         if (this.p2pLocalMove !== null) {
           this._resolveP2PTurn();
@@ -1031,19 +1068,187 @@ export class UI {
     });
   }
 
+  _handleP2PStartClick() {
+    this.p2pLocalStart = !this.p2pLocalStart;
+
+    if (this.p2pConn) {
+      try {
+        this.p2pConn.send({
+          type: 'START_CLICK',
+          start: this.p2pLocalStart
+        });
+      } catch (e) {
+        console.error("Error sending start click to remote:", e);
+      }
+    }
+
+    this._checkP2PStartCountdown();
+    this._updateP2PLobbyUI();
+  }
+
+  _checkP2PStartCountdown() {
+    if (this.p2pLocalStart && this.p2pRemoteStart) {
+      this._startP2PCountdown();
+    } else {
+      this._stopP2PCountdown();
+    }
+  }
+
+  _startP2PCountdown() {
+    if (this.p2pCountdownInterval) return;
+
+    const banner = document.getElementById('top-notch-banner');
+    const textEl = document.getElementById('top-notch-text');
+
+    this.p2pCountdownValue = 5;
+    if (banner && textEl) {
+      banner.style.display = 'block';
+      textEl.textContent = `Starting match in ${this.p2pCountdownValue}...`;
+    }
+
+    this.p2pCountdownInterval = setInterval(() => {
+      this.p2pCountdownValue--;
+      if (this.p2pCountdownValue <= 0) {
+        this._stopP2PCountdown();
+        if (banner) banner.style.display = 'none';
+
+        this.p2pLocalMove = null;
+        this.p2pRemoteMove = null;
+        this.p2pLocalReady = false;
+        this.p2pOpponentReady = false;
+        this.p2pLocalReadyRestart = false;
+        this.p2pOpponentReadyRestart = false;
+
+        this.game.switchToP2P(true);
+        this.game.start();
+
+        if (this.opponentHudLabel) this.opponentHudLabel.textContent = 'PLAYER 2';
+        if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = 'OPPONENT MOVE';
+
+        this._clearLog();
+        this._showScreen('game');
+        this._renderHUD(this.game.state.snapshot());
+        this._beginSelectionPhase();
+      } else {
+        if (textEl) {
+          textEl.textContent = `Starting match in ${this.p2pCountdownValue}...`;
+        }
+      }
+    }, 1000);
+  }
+
+  _stopP2PCountdown() {
+    if (this.p2pCountdownInterval) {
+      clearInterval(this.p2pCountdownInterval);
+      this.p2pCountdownInterval = null;
+    }
+    const banner = document.getElementById('top-notch-banner');
+    if (banner) {
+      banner.style.display = 'none';
+    }
+  }
+
+  _updateP2PLobbyUI() {
+    if (!this.p2pConn) return;
+
+    this.p2pRoomInput.style.display = 'none';
+    const separator = document.querySelector('.p2p-separator');
+    if (separator) separator.style.display = 'none';
+
+    const totalReady = (this.p2pLocalStart ? 1 : 0) + (this.p2pRemoteStart ? 1 : 0);
+
+    if (this.p2pIsHost) {
+      this.btnP2PCreate.style.display = 'block';
+      this.btnP2PCreate.disabled = false;
+      this.btnP2PJoin.style.display = 'none';
+      this.p2pCreateStatus.style.display = 'block';
+
+      if (this.p2pLocalStart) {
+        this.btnP2PCreate.textContent = 'STOP';
+        this.btnP2PCreate.className = 'btn-secondary';
+        if (!this.p2pRemoteStart) {
+          this.p2pCreateStatus.innerHTML = `<span style="color: var(--accent);">Waiting for the other player to start the game (${totalReady}/2 ready)</span>`;
+        } else {
+          this.p2pCreateStatus.innerHTML = `<span style="color: var(--win);">Match starting! (${totalReady}/2 ready)</span>`;
+        }
+      } else {
+        this.btnP2PCreate.textContent = 'START GAME';
+        this.btnP2PCreate.className = 'btn-primary';
+        if (this.p2pRemoteStart) {
+          this.p2pCreateStatus.innerHTML = `<span style="color: var(--accent);">Please click start, the other player is waiting... (${totalReady}/2 ready)</span>`;
+        } else {
+          this.p2pCreateStatus.innerHTML = `<span style="color: var(--win);">OPPONENT CONNECTED! (${totalReady}/2 ready)</span>`;
+        }
+      }
+    } else {
+      this.btnP2PJoin.style.display = 'block';
+      this.btnP2PJoin.disabled = false;
+      this.btnP2PCreate.style.display = 'none';
+      this.p2pJoinStatus.style.display = 'block';
+
+      if (this.p2pLocalStart) {
+        this.btnP2PJoin.textContent = 'STOP';
+        this.btnP2PJoin.className = 'btn-secondary';
+        if (!this.p2pRemoteStart) {
+          this.p2pJoinStatus.innerHTML = `<span style="color: var(--accent);">Waiting for the other player to start the game (${totalReady}/2 ready)</span>`;
+        } else {
+          this.p2pJoinStatus.innerHTML = `<span style="color: var(--win);">Match starting! (${totalReady}/2 ready)</span>`;
+        }
+      } else {
+        this.btnP2PJoin.textContent = 'START GAME';
+        this.btnP2PJoin.className = 'btn-primary';
+        if (this.p2pRemoteStart) {
+          this.p2pJoinStatus.innerHTML = `<span style="color: var(--accent);">Please click start, the other player is waiting... (${totalReady}/2 ready)</span>`;
+        } else {
+          this.p2pJoinStatus.innerHTML = `<span style="color: var(--win);">CONNECTED TO HOST! (${totalReady}/2 ready)</span>`;
+        }
+      }
+    }
+  }
+
+  _resetP2PLobbyUI() {
+    this.p2pLocalStart = false;
+    this.p2pRemoteStart = false;
+    this._stopP2PCountdown();
+
+    this.p2pRoomInput.value = '';
+    this.p2pRoomInput.style.display = 'block';
+
+    const separator = document.querySelector('.p2p-separator');
+    if (separator) separator.style.display = 'block';
+
+    this.btnP2PCreate.style.display = 'block';
+    this.btnP2PCreate.disabled = false;
+    this.btnP2PCreate.textContent = 'CREATE MATCH';
+    this.btnP2PCreate.className = 'btn-primary';
+
+    this.btnP2PJoin.style.display = 'block';
+    this.btnP2PJoin.disabled = false;
+    this.btnP2PJoin.textContent = 'JOIN MATCH';
+    this.btnP2PJoin.className = 'btn-secondary';
+
+    this.p2pCreateStatus.style.display = 'none';
+    this.p2pJoinStatus.style.display = 'none';
+  }
+
   _disconnectP2P() {
+    this.p2pLocalStart = false;
+    this.p2pRemoteStart = false;
+    this._stopP2PCountdown();
+
     if (this.p2pConn) {
       try {
         this.p2pConn.send({ type: 'DISCONNECT' });
         this.p2pConn.close();
-      } catch(e){}
+      } catch (e) { }
       this.p2pConn = null;
     }
     if (this.p2pPeer) {
-      try { this.p2pPeer.destroy(); } catch(e){}
+      try { this.p2pPeer.destroy(); } catch (e) { }
       this.p2pPeer = null;
     }
     this.game.switchToP2P(false);
+    this._resetP2PLobbyUI();
   }
 
   _handleP2PDisconnect() {
