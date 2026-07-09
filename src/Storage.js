@@ -47,7 +47,7 @@ export class Storage {
 
   /**
    * Record a completed P2P match.
-   * @param {object} entry - { opponent, result, myPts, oppPts }
+   * @param {object} entry - { opponent, opponentId, result, myPts, oppPts }
    */
   static addP2PMatch(entry) {
     const history = Storage.getP2PHistory();
@@ -58,6 +58,28 @@ export class Storage {
     try {
       localStorage.setItem(P2P_HISTORY_KEY, JSON.stringify(history));
     } catch (_) {}
+  }
+
+  /**
+   * Update all previous match history entries for a specific opponentId with a new nickname.
+   * @param {string} opponentId
+   * @param {string} newName
+   */
+  static updateOpponentName(opponentId, newName) {
+    if (!opponentId || opponentId === 'unknown-peer') return;
+    const history = Storage.getP2PHistory();
+    let updated = false;
+    for (const match of history) {
+      if (match.opponentId === opponentId && match.opponent !== newName) {
+        match.opponent = newName;
+        updated = true;
+      }
+    }
+    if (updated) {
+      try {
+        localStorage.setItem(P2P_HISTORY_KEY, JSON.stringify(history));
+      } catch (_) {}
+    }
   }
 
   /**
@@ -72,26 +94,30 @@ export class Storage {
     const board = {};
 
     // Accumulate local player stats
-    board[localName] = { name: localName, pts: 0, wins: 0, losses: 0, draws: 0, isLocal: true };
+    board['local'] = { name: localName, pts: 0, wins: 0, losses: 0, draws: 0, isLocal: true };
 
     for (const match of history) {
-      const opp = match.opponent || 'Unknown';
+      const oppKey = match.opponentId || match.opponent || 'Unknown';
+      const oppName = match.opponent || 'Unknown';
 
       // Local player
-      board[localName].pts += match.myPts || 0;
-      if (match.result === 'win') board[localName].wins++;
-      else if (match.result === 'loss') board[localName].losses++;
-      else board[localName].draws++;
+      board['local'].pts += match.myPts || 0;
+      if (match.result === 'win') board['local'].wins++;
+      else if (match.result === 'loss') board['local'].losses++;
+      else board['local'].draws++;
 
       // Opponent
-      if (!board[opp]) {
-        board[opp] = { name: opp, pts: 0, wins: 0, losses: 0, draws: 0, isLocal: false };
+      if (!board[oppKey]) {
+        board[oppKey] = { name: oppName, pts: 0, wins: 0, losses: 0, draws: 0, isLocal: false };
       }
-      board[opp].pts += match.oppPts || 0;
-      if (match.result === 'win') board[opp].losses++;
-      else if (match.result === 'loss') board[opp].wins++;
-      else board[opp].draws++;
+      board[oppKey].name = oppName; // Keep latest name
+      board[oppKey].pts += match.oppPts || 0;
+      if (match.result === 'win') board[oppKey].losses++;
+      else if (match.result === 'loss') board[oppKey].wins++;
+      else board[oppKey].draws++;
     }
+
+    board['local'].name = localName;
 
     // Sort by pts descending
     return Object.values(board).sort((a, b) => b.pts - a.pts);

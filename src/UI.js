@@ -549,6 +549,14 @@ export class UI {
     if (this.elRevealTimer) this.elRevealTimer.textContent = '';
 
     if (this.game.isP2P) {
+      const snap = this.game.state.snapshot();
+      const isTerminal = Rules.isTerminal(snap.lastOutcome);
+      if (isTerminal) {
+        this.game.advance();
+        setTimeout(() => this._showGameOver(this.game.state.snapshot()), 50);
+        return;
+      }
+
       this.p2pLocalReady = true;
       this._setTimerPhase('WAITING FOR OPPONENT');
       this.elTimerCount.textContent = '…';
@@ -1009,6 +1017,7 @@ export class UI {
       
       Storage.addP2PMatch({
         opponent: this.remoteNickname,
+        opponentId: this.p2pConn ? this.p2pConn.peer : 'unknown-peer',
         result: result,
         myPts: myPts,
         oppPts: oppPts
@@ -1229,16 +1238,21 @@ export class UI {
     conn.on('data', (data) => {
       if (data.type === 'NICKNAME') {
         this.remoteNickname = data.nickname || 'Opponent';
-        if (this.localNickname === this.remoteNickname) {
-          this.game.player.name = `${this.localNickname} (You)`;
-          this.game.cpu.name = `${this.remoteNickname} (Opponent)`;
-        } else {
-          this.game.player.name = this.localNickname;
-          this.game.cpu.name = this.remoteNickname;
+        
+        // Update any previous history records under this peer ID with the new nickname
+        if (conn && conn.peer) {
+          Storage.updateOpponentName(conn.peer, this.remoteNickname);
         }
+
+        this.game.player.name = `${this.localNickname} (You)`;
+        this.game.cpu.name = `${this.remoteNickname} (Opponent)`;
+
         if (this.playerHudLabel) this.playerHudLabel.textContent = this.game.player.name;
         if (this.opponentHudLabel) this.opponentHudLabel.textContent = this.game.cpu.name;
         if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = `${this.game.cpu.name.toUpperCase()} MOVE`;
+        
+        // Refresh leaderboard to show nickname update instantly
+        this._renderP2PLeaderboard();
         this._updateP2PLobbyUI();
       } else if (data.type === 'START_CLICK') {
         this.p2pRemoteStart = data.start;
@@ -1321,6 +1335,8 @@ export class UI {
         this.p2pOpponentReadyRestart = false;
         this.p2pHistoryRecorded = false;
 
+        this.game.player.name = `${this.localNickname} (You)`;
+        this.game.cpu.name = `${this.remoteNickname} (Opponent)`;
         this.game.switchToP2P(true);
         this.game.start();
 
