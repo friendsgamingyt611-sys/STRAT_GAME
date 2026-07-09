@@ -1241,5 +1241,139 @@ body.phone-arm-ui .log-panel {
   100% { transform: translate(-50%, 0); }
 }
 
+/* AI Level Selector Dashboard Control */
+.ai-level-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 1.15rem;
+  margin-bottom: 1.15rem;
+}
+.ai-level-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.ai-level-title {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+.btn-info-circle {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0 0.25rem;
+  transition: color 0.2s ease;
+}
+.btn-info-circle:hover {
+  color: var(--accent);
+}
+.ai-level-selector {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.25rem;
+  border-radius: var(--r1);
+  border: 1px solid var(--border);
+}
+.ai-lvl-btn {
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+.ai-lvl-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+.ai-lvl-btn.active {
+  background: rgba(234, 179, 8, 0.08) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.25);
+  border-color: var(--accent) !important;
+}
+.ai-level-name {
+  margin-top: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-align: center;
+}
+
+/* Inline Nickname Edit UI styling */
+.nickname-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.nickname-display {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 140px;
+  display: inline-block;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.25);
+  padding-bottom: 2px;
+}
+.nickname-input {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  padding: 0.3rem 0.5rem;
+  width: 150px;
+  outline: none;
+}
+.nickname-input:focus {
+  border-color: var(--accent);
+}
+.btn-nick-action {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease;
+}
+.btn-nick-action:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+}
+.btn-nick-action.save-active {
+  background: var(--text) !important;
+  color: #0c0c0e !important;
+  border-color: var(--text) !important;
+}
+.btn-nick-action.save-dimmed {
+  background: rgba(255, 255, 255, 0.02) !important;
+  color: var(--dim) !important;
+  border-color: var(--border) !important;
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 
 

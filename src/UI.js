@@ -16,6 +16,9 @@
  */
 import { Phase } from './State.js';
 import { MOVES, OUTCOMES, Rules } from './Rules.js';
+import { Names } from './Names.js';
+import { Storage } from './Storage.js';
+import { AI_LEVELS } from './AI.js';
 
 const LABELS = {
   [MOVES.SHOOT]: { icon: '⚡', label: 'SHOOT', sub: '1 unit · kills idler' },
@@ -54,11 +57,25 @@ export class UI {
     this.p2pLocalReadyRestart = false;
     this.p2pOpponentReadyRestart = false;
 
+    // P2P Nickname & lobby
+    this.localNickname = Names.get();
+    this.remoteNickname = 'Opponent';
+    this.p2pRoomCode = null;
+    this.p2pLobbyState = 'idle'; // idle | waiting | connected
+    this.p2pHistoryRecorded = false;
+
     this._bind();
     this._attachListeners();
     this.game.state.subscribe(s => this._onStateChange(s));
     this._showScreen('menu');
     this._renderProfile();
+
+    // Redraw tactic chart on resize/zoom to keep it perfectly crisp
+    window.addEventListener('resize', () => {
+      if (this.screens.menu && !this.screens.menu.hidden) {
+        this._renderPlaystyleTactic();
+      }
+    });
 
     // First time entry check
     if (!localStorage.getItem('sos_first_time')) {
@@ -97,18 +114,20 @@ export class UI {
 
     // P2P Profile & Leaderboard
     this.p2pProfilePts        = $('p2p-profile-pts');
-    this.lbP2PPlayerPts       = $('lb-p2p-player-pts');
-    this.lbP2POpponentPts     = $('lb-p2p-opponent-pts');
-    this.p2pPlayerCrown       = $('p2p-player-crown');
-    this.p2pOpponentCrown     = $('p2p-opponent-crown');
+    this.p2pLeaderboardRows   = $('p2p-leaderboard-rows');
     this.btnResetP2P          = $('btn-reset-p2p');
+
+    // P2P Nickname
+    this.p2pNicknameInput     = $('p2p-nickname-input');
+    this.p2pNicknameDisplay   = $('p2p-nickname-display');
+    this.btnEditNickname      = $('btn-edit-nickname');
 
     // P2P Setup
     this.btnP2PCreate         = $('btn-p2p-create');
     this.p2pCreateStatus      = $('p2p-create-status');
     this.btnP2PJoin           = $('btn-p2p-join');
     this.p2pRoomInput         = $('p2p-room-input');
-    this.p2pJoinStatus = $('p2p-join-status');
+    this.p2pJoinStatus        = $('p2p-join-status');
 
     // P2P Match start & countdown states
     this.p2pLocalStart = false;
@@ -117,8 +136,16 @@ export class UI {
     this.p2pCountdownInterval = null;
 
     // Dynamic Labels
+    this.playerHudLabel       = $('player-hud-label');
     this.opponentHudLabel     = $('opponent-hud-label');
     this.opponentMoveLabel    = $('opponent-move-label');
+
+    // AI Level UI
+    this.aiLevelBtns          = document.querySelectorAll('.ai-lvl-btn');
+    this.aiLevelName          = $('ai-level-name');
+    this.btnAiLevelInfo       = $('btn-ai-level-info');
+    this.aiLevelInfoModal     = $('ai-level-info-modal');
+    this.btnCloseAiInfo       = $('btn-close-ai-info');
 
     // Tutorial Modal
     this.btnHowToPlay         = $('btn-how-to-play');
@@ -210,10 +237,68 @@ export class UI {
     });
 
     this.btnResetP2P.addEventListener('click', () => {
-      if (confirm('Reset your Multiplayer points?')) {
+      if (confirm('Reset your Multiplayer points & history?')) {
         this.game.resetP2P();
         this._renderProfile();
       }
+    });
+
+    // Nickname inline editing flow
+    this.nicknameMode = 'read';
+    this._updateNicknameUI('read');
+
+    this.btnEditNickname?.addEventListener('click', () => {
+      if (this.nicknameMode === 'edit') {
+        const val = this.p2pNicknameInput?.value?.trim();
+        if (val && val !== this.localNickname) {
+          Names.save(val);
+          this.localNickname = val;
+          // Sync with profile and leaderboards immediately
+          const localSaved = localStorage.getItem('sos_p2p_profile_pts');
+          const localPts = localSaved !== null ? parseInt(localSaved, 10) : 0;
+          Storage.saveP2PLeaderboard(this.localNickname, localPts);
+          this._renderP2PLeaderboard();
+        }
+        this._updateNicknameUI('read');
+      } else {
+        this._updateNicknameUI('edit');
+        this.p2pNicknameInput?.focus();
+      }
+    });
+
+    this.p2pNicknameInput?.addEventListener('input', () => {
+      this._checkSaveButtonState();
+    });
+
+    this.p2pNicknameInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const val = this.p2pNicknameInput?.value?.trim();
+        if (val && val !== this.localNickname) {
+          this.btnEditNickname?.click();
+        }
+      }
+    });
+
+    // AI Level selector
+    this.aiLevelBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const lvl = parseInt(btn.dataset.level, 10);
+        this.game.setAILevel(lvl);
+        this.aiLevelBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.level, 10) === lvl));
+        if (this.aiLevelName) this.aiLevelName.textContent = AI_LEVELS[lvl - 1]?.name ?? '';
+      });
+    });
+    // Init AI level display
+    const savedLvl = this.game.getAILevel();
+    this.aiLevelBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.level, 10) === savedLvl));
+    if (this.aiLevelName) this.aiLevelName.textContent = AI_LEVELS[savedLvl - 1]?.name ?? 'Reactive';
+
+    // AI Level info modal
+    this.btnAiLevelInfo?.addEventListener('click', () => {
+      if (this.aiLevelInfoModal) this.aiLevelInfoModal.style.display = 'flex';
+    });
+    this.btnCloseAiInfo?.addEventListener('click', () => {
+      if (this.aiLevelInfoModal) this.aiLevelInfoModal.style.display = 'none';
     });
 
     // Tutorial modal
@@ -250,7 +335,7 @@ export class UI {
       this.game.start();
       this._clearLog();
       this._showScreen('game');
-      // Set Labels to Computer Mode default
+      if (this.playerHudLabel) this.playerHudLabel.textContent = 'YOU';
       if (this.opponentHudLabel) this.opponentHudLabel.textContent = 'CPU';
       if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = 'CPU MOVE';
       this._renderHUD(this.game.state.snapshot());
@@ -265,7 +350,7 @@ export class UI {
       }
     });
 
-    // Move buttons: click = SELECT (not commit), can change before timer fires
+    // Move buttons
     this.moveBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.classList.contains('locked') || btn.disabled) return;
@@ -275,7 +360,7 @@ export class UI {
       });
     });
 
-    // SKIP button: skip the 5-second reveal early
+    // SKIP button (hidden in P2P)
     this.btnContinue.addEventListener('click', () => {
       this._clearTimer();
       this._advanceAfterReveal();
@@ -294,7 +379,7 @@ export class UI {
         this.game.start();
         this._clearLog();
         this._showScreen('game');
-        // Set Labels
+        if (this.playerHudLabel) this.playerHudLabel.textContent = 'YOU';
         if (this.opponentHudLabel) this.opponentHudLabel.textContent = 'CPU';
         if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = 'CPU MOVE';
         this._renderHUD(this.game.state.snapshot());
@@ -412,7 +497,12 @@ export class UI {
     const cls = OUT_CLASS[snap.lastOutcome] ?? '';
     this.elResultText.className = `result-text ${cls}`;
     this.elResultText.textContent = this._headline(snap.lastOutcome);
-    this.elResultDesc.textContent = snap.lastDesc;
+    
+    let desc = snap.lastDesc;
+    if (this.game.isP2P) {
+      desc = desc.replace(/CPU/g, this.remoteNickname);
+    }
+    this.elResultDesc.textContent = desc;
 
     this._renderHUD(snap);
     this._appendLog(snap);
@@ -426,7 +516,7 @@ export class UI {
       this.elTimerCount.textContent = '';
       this.elTimerBar.style.width = '0%';
       if (this.elTimerSel) this.elTimerSel.textContent = 'Proceeding to results…';
-      this._showSkip();
+      if (!this.game.isP2P) this._showSkip();
 
       // Auto go to game over after REVEAL_DURATION
       this._runTimer(REVEAL_DURATION, (r) => {
@@ -440,7 +530,7 @@ export class UI {
       this.elTimerCount.textContent = REVEAL_DURATION;
       this.elTimerBar.style.width = '100%';
       if (this.elTimerSel) this.elTimerSel.textContent = 'Next round starting…';
-      this._showSkip();
+      if (!this.game.isP2P) this._showSkip();
 
       this._runTimer(REVEAL_DURATION, (r) => {
         this.elTimerCount.textContent = r;
@@ -515,6 +605,7 @@ export class UI {
   }
 
   // ─── HUD & UI helpers ────────────────────────────────────
+  // ─── HUD & UI helpers ────────────────────────────────────
   _renderProfile() {
     const pPts = this.game.getProfilePts();
     const cPts = this.game.getCpuProfilePts();
@@ -543,11 +634,24 @@ export class UI {
           this.elPlayerCrown.style.display = 'inline';
           this.elCpuCrown.style.display = 'inline';
         } else {
+          // Equal and 0
           this.elPlayerCrown.style.display = 'none';
           this.elCpuCrown.style.display = 'none';
         }
       }
     }
+
+    // P2P Profile Pts rendering
+    const p2pSaved = localStorage.getItem('sos_p2p_profile_pts');
+    const p2pPts = p2pSaved !== null ? parseInt(p2pSaved, 10) : 0;
+    if (this.p2pProfilePts) this.p2pProfilePts.textContent = p2pPts;
+
+    if (this.p2pNicknameDisplay && this.nicknameMode !== 'edit') {
+      this.p2pNicknameDisplay.textContent = this.localNickname;
+    }
+
+    // Render dynamic P2P leaderboard
+    this._renderP2PLeaderboard();
 
     // ARM Mobile Detection display check
     const isArmUi = document.body.classList.contains('phone-arm-ui');
@@ -560,6 +664,57 @@ export class UI {
 
     // Render Playstyle/Tactic Chart
     this._renderPlaystyleTactic();
+  }
+
+  _renderP2PLeaderboard() {
+    if (!this.p2pLeaderboardRows) return;
+    const localSaved = localStorage.getItem('sos_p2p_profile_pts');
+    const localPts = localSaved !== null ? parseInt(localSaved, 10) : 0;
+    
+    // Get the board from Storage
+    const leaderboard = Storage.getP2PLeaderboard(this.localNickname);
+    
+    // Sync local nickname points
+    const localEntry = leaderboard.find(e => e.isLocal);
+    if (localEntry) {
+      localEntry.pts = localPts;
+    }
+    
+    // Re-sort
+    leaderboard.sort((a, b) => b.pts - a.pts);
+
+    this.p2pLeaderboardRows.innerHTML = '';
+    leaderboard.forEach((entry, idx) => {
+      const row = document.createElement('div');
+      row.className = 'lb-row';
+      if (entry.isLocal) {
+        row.id = 'lb-row-p2p-player';
+      }
+      
+      const rank = document.createElement('span');
+      rank.className = 'lb-rank';
+      rank.textContent = `#${idx + 1}`;
+      
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'lb-name';
+      nameSpan.textContent = entry.isLocal ? `${entry.name} (YOU)` : entry.name;
+      
+      if (idx === 0 && entry.pts > 0) {
+        const crown = document.createElement('span');
+        crown.className = 'lb-crown';
+        crown.textContent = ' 👑';
+        nameSpan.appendChild(crown);
+      }
+      
+      const score = document.createElement('span');
+      score.className = 'lb-score';
+      score.textContent = `${entry.pts} pts`;
+      
+      row.appendChild(rank);
+      row.appendChild(nameSpan);
+      row.appendChild(score);
+      this.p2pLeaderboardRows.appendChild(row);
+    });
   }
 
   _renderPlaystyleTactic() {
@@ -804,12 +959,14 @@ export class UI {
 
   // ─── Headline ────────────────────────────────────────────
   _headline(outcome) {
+    const isP2P = this.game.isP2P;
+    const oppName = isP2P ? this.remoteNickname : 'CPU';
     switch (outcome) {
-      case OUTCOMES.KILL_PLAYER: return '▶ YOU ELIMINATED CPU';
-      case OUTCOMES.KILL_CPU: return '▶ CPU ELIMINATED YOU';
+      case OUTCOMES.KILL_PLAYER: return `▶ YOU ELIMINATED ${oppName}`;
+      case OUTCOMES.KILL_CPU: return `▶ ${oppName} ELIMINATED YOU`;
       case OUTCOMES.DUAL_DEFEAT: return '✕ DUAL DEFEAT';
       case OUTCOMES.POINT_PLAYER: return '+ YOU SCORE';
-      case OUTCOMES.POINT_CPU: return '+ CPU SCORES';
+      case OUTCOMES.POINT_CPU: return `+ ${oppName} SCORES`;
       case OUTCOMES.STANDOFF: return '— STANDOFF';
       default: return '';
     }
@@ -837,9 +994,29 @@ export class UI {
 
   // ─── Game Over ───────────────────────────────────────────
   _showGameOver(state) {
+    const isP2P = this.game.isP2P;
+    
+    if (isP2P && !this.p2pHistoryRecorded) {
+      this.p2pHistoryRecorded = true;
+      const result = state.winner === 'player' ? 'win' : (state.winner === 'cpu' ? 'loss' : 'draw');
+      let myPts = 0;
+      let oppPts = 0;
+      if (state.winner === 'player') {
+        myPts = state.ptsAwarded;
+      } else if (state.winner === 'cpu') {
+        oppPts = state.ptsAwarded;
+      }
+      
+      Storage.addP2PMatch({
+        opponent: this.remoteNickname,
+        result: result,
+        myPts: myPts,
+        oppPts: oppPts
+      });
+    }
+
     this._renderProfile();  // refresh points and memory counter
 
-    const isP2P = this.game.isP2P;
     let profilePts = 0;
     if (isP2P) {
       const pSaved = localStorage.getItem('sos_p2p_profile_pts');
@@ -852,7 +1029,7 @@ export class UI {
       this.p2pOpponentReadyRestart = false;
 
       const profileLabelEl = document.getElementById('end-profile-label');
-      if (profileLabelEl) profileLabelEl.textContent = 'MULTIPLAYER P2P PROFILE';
+      if (profileLabelEl) profileLabelEl.textContent = `${this.localNickname.toUpperCase()} (MULTIPLAYER PROFILE)`;
     } else {
       profilePts = this.game.getProfilePts();
       const profileLabelEl = document.getElementById('end-profile-label');
@@ -964,18 +1141,23 @@ export class UI {
 
   _initP2PAsHost() {
     this.p2pIsHost = true;
+    this.p2pLobbyState = 'waiting';
     this.p2pCreateStatus.style.display = 'block';
     this.p2pCreateStatus.textContent = 'Initializing PeerJS...';
-    this.btnP2PCreate.disabled = true;
-    this.btnP2PJoin.disabled = true;
+    
+    if (this.p2pNicknameInput) this.p2pNicknameInput.disabled = true;
+    if (this.btnEditNickname) this.btnEditNickname.disabled = true;
+    if (this.p2pRoomInput) this.p2pRoomInput.disabled = true;
+    this.btnP2PJoin.style.display = 'none';
 
     // Use PeerJS with random 4-digit code ID mapping
     const code = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // We append prefix to peer ID to make it distinct on global directory
     this.p2pPeer = new Peer('sos-room-' + code);
 
     this.p2pPeer.on('open', () => {
+      this.p2pRoomCode = code;
+      this._updateP2PLobbyUI();
       this.p2pCreateStatus.innerHTML = `ROOM CODE: <strong style="font-size:1.15rem; color:var(--accent);">${code}</strong><br><span style="font-size:0.75rem; color:var(--muted)">Waiting for opponent to join...</span>`;
     });
 
@@ -987,8 +1169,7 @@ export class UI {
     this.p2pPeer.on('error', (err) => {
       console.error(err);
       this.p2pCreateStatus.textContent = 'Connection Error. Retrying...';
-      this.btnP2PCreate.disabled = false;
-      this.btnP2PJoin.disabled = false;
+      this._disconnectP2P();
     });
   }
 
@@ -1001,10 +1182,14 @@ export class UI {
     }
 
     this.p2pIsHost = false;
+    this.p2pLobbyState = 'waiting';
     this.p2pJoinStatus.style.display = 'block';
     this.p2pJoinStatus.textContent = `Connecting to room ${code}...`;
-    this.btnP2PCreate.disabled = true;
-    this.btnP2PJoin.disabled = true;
+    
+    if (this.p2pNicknameInput) this.p2pNicknameInput.disabled = true;
+    if (this.btnEditNickname) this.btnEditNickname.disabled = true;
+    if (this.p2pRoomInput) this.p2pRoomInput.disabled = true;
+    this.btnP2PCreate.style.display = 'none';
 
     this.p2pPeer = new Peer();
 
@@ -1017,8 +1202,7 @@ export class UI {
     this.p2pPeer.on('error', (err) => {
       console.error(err);
       this.p2pJoinStatus.textContent = 'Failed to connect. Try again.';
-      this.btnP2PCreate.disabled = false;
-      this.btnP2PJoin.disabled = false;
+      this._disconnectP2P();
     });
   }
 
@@ -1035,11 +1219,28 @@ export class UI {
       this.p2pLocalReadyRestart = false;
       this.p2pOpponentReadyRestart = false;
 
+      this.p2pLobbyState = 'connected';
+
+      // Send local nickname
+      conn.send({ type: 'NICKNAME', nickname: this.localNickname });
       this._updateP2PLobbyUI();
     });
 
     conn.on('data', (data) => {
-      if (data.type === 'START_CLICK') {
+      if (data.type === 'NICKNAME') {
+        this.remoteNickname = data.nickname || 'Opponent';
+        if (this.localNickname === this.remoteNickname) {
+          this.game.player.name = `${this.localNickname} (You)`;
+          this.game.cpu.name = `${this.remoteNickname} (Opponent)`;
+        } else {
+          this.game.player.name = this.localNickname;
+          this.game.cpu.name = this.remoteNickname;
+        }
+        if (this.playerHudLabel) this.playerHudLabel.textContent = this.game.player.name;
+        if (this.opponentHudLabel) this.opponentHudLabel.textContent = this.game.cpu.name;
+        if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = `${this.game.cpu.name.toUpperCase()} MOVE`;
+        this._updateP2PLobbyUI();
+      } else if (data.type === 'START_CLICK') {
         this.p2pRemoteStart = data.start;
         this._checkP2PStartCountdown();
         this._updateP2PLobbyUI();
@@ -1118,12 +1319,14 @@ export class UI {
         this.p2pOpponentReady = false;
         this.p2pLocalReadyRestart = false;
         this.p2pOpponentReadyRestart = false;
+        this.p2pHistoryRecorded = false;
 
         this.game.switchToP2P(true);
         this.game.start();
 
-        if (this.opponentHudLabel) this.opponentHudLabel.textContent = 'PLAYER 2';
-        if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = 'OPPONENT MOVE';
+        if (this.playerHudLabel) this.playerHudLabel.textContent = this.game.player.name;
+        if (this.opponentHudLabel) this.opponentHudLabel.textContent = this.game.cpu.name;
+        if (this.opponentMoveLabel) this.opponentMoveLabel.textContent = `${this.game.cpu.name.toUpperCase()} MOVE`;
 
         this._clearLog();
         this._showScreen('game');
@@ -1149,58 +1352,88 @@ export class UI {
   }
 
   _updateP2PLobbyUI() {
-    if (!this.p2pConn) return;
+    if (this.p2pLobbyState !== 'idle') {
+      this.p2pRoomInput.style.display = 'none';
+      if (this.p2pNicknameInput) this.p2pNicknameInput.disabled = true;
+      if (this.btnEditNickname) this.btnEditNickname.disabled = true;
+      const separator = document.querySelector('.p2p-separator');
+      if (separator) separator.style.display = 'none';
+    }
 
-    this.p2pRoomInput.style.display = 'none';
-    const separator = document.querySelector('.p2p-separator');
-    if (separator) separator.style.display = 'none';
-
-    const totalReady = (this.p2pLocalStart ? 1 : 0) + (this.p2pRemoteStart ? 1 : 0);
-
-    if (this.p2pIsHost) {
-      this.btnP2PCreate.style.display = 'block';
-      this.btnP2PCreate.disabled = false;
-      this.btnP2PJoin.style.display = 'none';
-      this.p2pCreateStatus.style.display = 'block';
-
-      if (this.p2pLocalStart) {
-        this.btnP2PCreate.textContent = 'STOP';
+    if (this.p2pLobbyState === 'waiting') {
+      if (this.p2pIsHost) {
+        this.btnP2PCreate.style.display = 'block';
+        this.btnP2PCreate.disabled = false;
+        this.btnP2PCreate.textContent = 'DESTROY MATCH';
         this.btnP2PCreate.className = 'btn-secondary';
-        if (!this.p2pRemoteStart) {
-          this.p2pCreateStatus.innerHTML = `<span style="color: var(--accent);">Waiting for the other player to start the game (${totalReady}/2 ready)</span>`;
-        } else {
-          this.p2pCreateStatus.innerHTML = `<span style="color: var(--win);">Match starting! (${totalReady}/2 ready)</span>`;
-        }
+        this.btnP2PJoin.style.display = 'none';
       } else {
-        this.btnP2PCreate.textContent = 'START GAME';
-        this.btnP2PCreate.className = 'btn-primary';
-        if (this.p2pRemoteStart) {
-          this.p2pCreateStatus.innerHTML = `<span style="color: var(--accent);">Please click start, the other player is waiting... (${totalReady}/2 ready)</span>`;
-        } else {
-          this.p2pCreateStatus.innerHTML = `<span style="color: var(--win);">OPPONENT CONNECTED! (${totalReady}/2 ready)</span>`;
-        }
-      }
-    } else {
-      this.btnP2PJoin.style.display = 'block';
-      this.btnP2PJoin.disabled = false;
-      this.btnP2PCreate.style.display = 'none';
-      this.p2pJoinStatus.style.display = 'block';
-
-      if (this.p2pLocalStart) {
-        this.btnP2PJoin.textContent = 'STOP';
+        this.btnP2PJoin.style.display = 'block';
+        this.btnP2PJoin.disabled = false;
+        this.btnP2PJoin.textContent = 'CANCEL';
         this.btnP2PJoin.className = 'btn-secondary';
-        if (!this.p2pRemoteStart) {
-          this.p2pJoinStatus.innerHTML = `<span style="color: var(--accent);">Waiting for the other player to start the game (${totalReady}/2 ready)</span>`;
+        this.btnP2PCreate.style.display = 'none';
+      }
+      return;
+    }
+
+    if (this.p2pLobbyState === 'connected') {
+      const totalReady = (this.p2pLocalStart ? 1 : 0) + (this.p2pRemoteStart ? 1 : 0);
+      const nameText = this.remoteNickname || 'Opponent';
+
+      if (this.p2pIsHost) {
+        this.btnP2PCreate.style.display = 'block';
+        this.btnP2PCreate.disabled = false;
+        this.btnP2PJoin.style.display = 'block';
+        this.btnP2PJoin.disabled = false;
+        this.btnP2PJoin.textContent = 'EXIT MATCH';
+        this.btnP2PJoin.className = 'btn-ghost';
+
+        this.p2pCreateStatus.style.display = 'block';
+
+        if (this.p2pLocalStart) {
+          this.btnP2PCreate.textContent = 'STOP';
+          this.btnP2PCreate.className = 'btn-secondary';
+          if (!this.p2pRemoteStart) {
+            this.p2pCreateStatus.innerHTML = `<span style="color: var(--accent);">Waiting for ${nameText} to start (${totalReady}/2 ready)</span>`;
+          } else {
+            this.p2pCreateStatus.innerHTML = `<span style="color: var(--win);">Match starting! (${totalReady}/2 ready)</span>`;
+          }
         } else {
-          this.p2pJoinStatus.innerHTML = `<span style="color: var(--win);">Match starting! (${totalReady}/2 ready)</span>`;
+          this.btnP2PCreate.textContent = 'START GAME';
+          this.btnP2PCreate.className = 'btn-primary';
+          if (this.p2pRemoteStart) {
+            this.p2pCreateStatus.innerHTML = `<span style="color: var(--accent);">${nameText} is waiting for you... (${totalReady}/2 ready)</span>`;
+          } else {
+            this.p2pCreateStatus.innerHTML = `<span style="color: var(--win);">${nameText.toUpperCase()} CONNECTED! (${totalReady}/2 ready)</span>`;
+          }
         }
       } else {
-        this.btnP2PJoin.textContent = 'START GAME';
-        this.btnP2PJoin.className = 'btn-primary';
-        if (this.p2pRemoteStart) {
-          this.p2pJoinStatus.innerHTML = `<span style="color: var(--accent);">Please click start, the other player is waiting... (${totalReady}/2 ready)</span>`;
+        this.btnP2PJoin.style.display = 'block';
+        this.btnP2PJoin.disabled = false;
+        this.btnP2PCreate.style.display = 'block';
+        this.btnP2PCreate.disabled = false;
+        this.btnP2PCreate.textContent = 'EXIT MATCH';
+        this.btnP2PCreate.className = 'btn-ghost';
+
+        this.p2pJoinStatus.style.display = 'block';
+
+        if (this.p2pLocalStart) {
+          this.btnP2PJoin.textContent = 'STOP';
+          this.btnP2PJoin.className = 'btn-secondary';
+          if (!this.p2pRemoteStart) {
+            this.p2pJoinStatus.innerHTML = `<span style="color: var(--accent);">Waiting for host to start (${totalReady}/2 ready)</span>`;
+          } else {
+            this.p2pJoinStatus.innerHTML = `<span style="color: var(--win);">Match starting! (${totalReady}/2 ready)</span>`;
+          }
         } else {
-          this.p2pJoinStatus.innerHTML = `<span style="color: var(--win);">CONNECTED TO HOST! (${totalReady}/2 ready)</span>`;
+          this.btnP2PJoin.textContent = 'START GAME';
+          this.btnP2PJoin.className = 'btn-primary';
+          if (this.p2pRemoteStart) {
+            this.p2pJoinStatus.innerHTML = `<span style="color: var(--accent);">Host is waiting for you... (${totalReady}/2 ready)</span>`;
+          } else {
+            this.p2pJoinStatus.innerHTML = `<span style="color: var(--win);">CONNECTED TO HOST! (${totalReady}/2 ready)</span>`;
+          }
         }
       }
     }
@@ -1209,10 +1442,15 @@ export class UI {
   _resetP2PLobbyUI() {
     this.p2pLocalStart = false;
     this.p2pRemoteStart = false;
+    this.p2pLobbyState = 'idle';
     this._stopP2PCountdown();
 
     this.p2pRoomInput.value = '';
     this.p2pRoomInput.style.display = 'block';
+    this.p2pRoomInput.disabled = false;
+
+    if (this.p2pNicknameInput) this.p2pNicknameInput.disabled = false;
+    if (this.btnEditNickname) this.btnEditNickname.disabled = false;
 
     const separator = document.querySelector('.p2p-separator');
     if (separator) separator.style.display = 'block';
@@ -1271,6 +1509,48 @@ export class UI {
     this.btnTutorialPrev.disabled = (index === 0);
     this.btnTutorialNext.textContent = (index === this.tutorialSlides.length - 1) ? 'Finish' : 'Next →';
     this.currentSlideIndex = index;
+  }
+
+  _updateNicknameUI(mode) {
+    this.nicknameMode = mode;
+    if (mode === 'read') {
+      if (this.p2pNicknameDisplay) {
+        this.p2pNicknameDisplay.textContent = this.localNickname;
+        this.p2pNicknameDisplay.style.display = 'inline-block';
+      }
+      if (this.p2pNicknameInput) {
+        this.p2pNicknameInput.style.display = 'none';
+      }
+      if (this.btnEditNickname) {
+        this.btnEditNickname.textContent = 'EDIT';
+        this.btnEditNickname.disabled = false;
+        this.btnEditNickname.className = 'btn-nick-action';
+      }
+    } else {
+      if (this.p2pNicknameDisplay) {
+        this.p2pNicknameDisplay.style.display = 'none';
+      }
+      if (this.p2pNicknameInput) {
+        this.p2pNicknameInput.style.display = 'inline-block';
+        this.p2pNicknameInput.value = this.localNickname;
+      }
+      if (this.btnEditNickname) {
+        this.btnEditNickname.textContent = 'SAVE';
+      }
+      this._checkSaveButtonState();
+    }
+  }
+
+  _checkSaveButtonState() {
+    if (!this.p2pNicknameInput || !this.btnEditNickname) return;
+    const currentVal = this.p2pNicknameInput.value.trim();
+    if (currentVal === '' || currentVal === this.localNickname) {
+      this.btnEditNickname.disabled = true;
+      this.btnEditNickname.className = 'btn-nick-action save-dimmed';
+    } else {
+      this.btnEditNickname.disabled = false;
+      this.btnEditNickname.className = 'btn-nick-action save-active';
+    }
   }
 
   _openTutorial() {

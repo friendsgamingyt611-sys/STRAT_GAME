@@ -65,6 +65,24 @@
         </div>
       </div>
 
+      <!-- AI Level Selector -->
+      <div class="ai-level-card">
+        <div class="ai-level-header">
+          <span class="ai-level-title">CPU COGNITION LEVEL</span>
+          <button id="btn-ai-level-info" class="btn-info-circle" aria-label="Level info">ⓘ</button>
+        </div>
+        <div class="ai-level-selector">
+          <button class="ai-lvl-btn active" data-level="1">L1</button>
+          <button class="ai-lvl-btn" data-level="2">L2</button>
+          <button class="ai-lvl-btn" data-level="3">L3</button>
+          <button class="ai-lvl-btn" data-level="4">L4</button>
+          <button class="ai-lvl-btn" data-level="5">L5</button>
+          <button class="ai-lvl-btn" data-level="6">L6</button>
+          <button class="ai-lvl-btn" data-level="7">L7</button>
+        </div>
+        <div class="ai-level-name" id="ai-level-name">Reactive</div>
+      </div>
+
       <!-- Leaderboard card -->
       <div class="leaderboard-card">
         <div class="lb-header">
@@ -110,11 +128,16 @@
          VS MULTIPLAYER (P2P) MODE CONTENT
          ────────────────────────────────────────── -->
     <div id="mode-multiplayer-content" style="display: none;">
-      <!-- P2P Profile card -->
+      <!-- P2P Profile card with Nickname -->
       <div class="profile-card">
         <div class="profile-header-row">
           <div>
             <div class="profile-label">P2P MULTIPLAYER PROFILE</div>
+            <div class="nickname-row">
+              <span id="p2p-nickname-display" class="nickname-display"></span>
+              <input type="text" id="p2p-nickname-input" class="nickname-input" maxlength="20" placeholder="Your Nickname" style="display: none;" />
+              <button id="btn-edit-nickname" class="btn-nick-action">EDIT</button>
+            </div>
             <div class="profile-pts-row">
               <span class="profile-pts-value" id="p2p-profile-pts">0</span>
               <span class="profile-pts-unit">pts</span>
@@ -124,29 +147,20 @@
         </div>
       </div>
 
-      <!-- P2P Leaderboard -->
+      <!-- P2P Leaderboard (dynamic, history-based) -->
       <div class="leaderboard-card">
         <div class="lb-header">
           <span class="lb-title">P2P LEADERBOARD</span>
         </div>
-        <div class="lb-rows">
-          <div class="lb-row" id="lb-row-p2p-player">
-            <span class="lb-rank">#1</span>
-            <span class="lb-name">YOU <span class="lb-crown" id="p2p-player-crown">👑</span></span>
-            <span class="lb-score"><span id="lb-p2p-player-pts">0</span> pts</span>
-          </div>
-          <div class="lb-row" id="lb-row-p2p-opponent">
-            <span class="lb-rank">#2</span>
-            <span class="lb-name">OPPONENTS <span class="lb-crown" id="p2p-opponent-crown">👑</span></span>
-            <span class="lb-score"><span id="lb-p2p-opponent-pts">0</span> pts</span>
-          </div>
+        <div class="lb-rows" id="p2p-leaderboard-rows">
+          <!-- Dynamically populated -->
         </div>
       </div>
 
       <!-- P2P Matchmaking setup -->
       <div class="p2p-card">
         <div class="p2p-card-header">P2P MATCHMAKING</div>
-        
+
         <div class="p2p-section">
           <button id="btn-p2p-create" class="btn-primary">CREATE MATCH</button>
           <div id="p2p-create-status" class="p2p-status-text" style="display: none;"></div>
@@ -179,7 +193,7 @@
   <!-- HUD -->
   <div class="hud-bar">
     <div class="hud-side hud-player">
-      <span class="hud-label">YOU</span>
+      <span class="hud-label" id="player-hud-label">YOU</span>
       <span class="hud-pts" id="player-match-pts">0</span>
       <span class="hud-units" id="player-units" title="Your resource units">○</span>
       <span id="player-status" class="status-badge alive">ALIVE</span>
@@ -237,7 +251,7 @@
       <div class="reveal-timer" id="reveal-timer"></div>
     </div>
 
-    <!-- Continue (skip reveal) -->
+    <!-- Continue (skip reveal) — hidden during P2P -->
     <button id="btn-continue" class="btn-continue" hidden aria-label="Skip to next round">SKIP →</button>
 
     <!-- Move picker -->
@@ -332,11 +346,11 @@
       <div class="tutorial-slide" data-slide="3" style="display: none;">
         <h3>4. Flow & Timer</h3>
         <p>Every round has a <strong>10-second</strong> selection phase. You can vote for any move during this time. The selection active at 0s is automatically committed.</p>
-        <p>A <strong>5-second</strong> reveal phase shows both moves. You can skip it early by clicking the SKIP button.</p>
+        <p>A <strong>5-second</strong> reveal phase shows both moves.</p>
         <p class="tut-highlight">If the match ends in your victory, your profile inherits the combined match points of both players!</p>
       </div>
     </div>
-    
+
     <div class="tutorial-controls">
       <button id="btn-tutorial-prev" class="btn-ghost" disabled>&larr; Prev</button>
       <div class="tutorial-dots">
@@ -346,6 +360,25 @@
         <span class="tut-dot" data-slide="3"></span>
       </div>
       <button id="btn-tutorial-next" class="btn-ghost">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     AI LEVEL INFO POPUP
+     ═══════════════════════════════════════ -->
+<div id="ai-level-info-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-content modal-sm">
+    <button id="btn-close-ai-info" class="modal-close-btn" aria-label="Close">×</button>
+    <h3 style="margin-top: 0;">CPU Cognition Levels</h3>
+    <div class="ai-info-list">
+      <div class="ai-info-item"><strong>L1 Reactive</strong><br>Reacts based only on your very last move.</div>
+      <div class="ai-info-item"><strong>L2 Rule-Based</strong><br>Follows optimal rules for the current game state.</div>
+      <div class="ai-info-item"><strong>L3 Predictive</strong><br>Models your future moves using history and transition patterns.</div>
+      <div class="ai-info-item"><strong>L4 Meta-Reactive</strong><br>Thinks about how you think. Can mislead or exploit your reasoning.</div>
+      <div class="ai-info-item"><strong>L5 Meta-Predictive</strong><br>Multi-layered reasoning. Plans ahead, identifies and counters traps.</div>
+      <div class="ai-info-item"><strong>L6 Adaptive</strong><br>Learns during the match. Compares live behaviour to your history.</div>
+      <div class="ai-info-item"><strong>L7 Awakening</strong><br>Self-aware. Observes its influence, prunes incorrect predictions.</div>
     </div>
   </div>
 </div>

@@ -2,25 +2,25 @@
  * Game.js — Shoot Or Shield
  *
  * Orchestrates Player + AI + Rules + State.
- * The CPU learns from every round across all matches (memory persists).
- * No personalities — pure adaptive opponent.
- *
- * Win: kill the opponent (SHOOT vs IDLE) → winner claims both match point pools.
- * Dual Defeat (SHOOT vs SHOOT) → nobody claims anything.
+ * Supports VS Computer (7 AI levels) and VS Player P2P modes.
  */
 
 import { Player }                  from './Player.js';
 import { AI }                      from './AI.js';
 import { Rules, MOVES, OUTCOMES }  from './Rules.js';
 import { State, Phase }            from './State.js';
+import { Storage }                 from './Storage.js';
 
 export class Game {
   constructor() {
     this.player          = new Player('You', 'sos_profile_pts');
     this.cpu             = new AI();
     this.state           = new State();
-    this._lastPlayerMove = null;   // for transition learning
+    this._lastPlayerMove = null;
     this.isP2P           = false;
+
+    // Restore AI level from storage
+    this.cpu.setLevel(Storage.getAILevel());
   }
 
   /** Switch between P2P and Computer Game modes */
@@ -32,10 +32,23 @@ export class Game {
     } else {
       this.player = new Player('You', 'sos_profile_pts');
       this.cpu    = new AI();
+      this.cpu.setLevel(Storage.getAILevel());
     }
   }
 
-  /** Start / restart a match (CPU memory is NOT cleared here) */
+  /** Set the AI cognition level (1-7) */
+  setAILevel(level) {
+    Storage.setAILevel(level);
+    if (!this.isP2P && this.cpu instanceof AI) {
+      this.cpu.setLevel(level);
+    }
+  }
+
+  getAILevel() {
+    return Storage.getAILevel();
+  }
+
+  /** Start / restart a match */
   start() {
     this.player.startMatch();
     this.cpu.startMatch();
@@ -57,7 +70,7 @@ export class Game {
   }
 
   /**
-   * Called by UI when player commits a move (at timer expiry or explicit submit).
+   * Called by UI when player commits a move (VS Computer).
    * @param {string} playerMove
    * @returns {object|null}  state snapshot
    */
@@ -67,10 +80,10 @@ export class Game {
 
     this.state.setPhase(Phase.REVEALING);
 
-    // CPU decision — uses last player move for transition prediction
+    // CPU decision
     const cpuMove = this.cpu.alive
       ? this.cpu.chooseMove(this._lastPlayerMove)
-      : MOVES.IDLE;   // dead CPU = ghost
+      : MOVES.IDLE;
 
     // Deduct units
     this.player.commitMove(playerMove);
@@ -89,13 +102,13 @@ export class Game {
     if (result.playerDies) this.player.die();
     if (result.cpuDies)    this.cpu.die();
 
-    // CPU learns from player's actual move (BEFORE updating _lastPlayerMove)
+    // CPU learns from player's actual move
     this.cpu.learn(playerMove, this._lastPlayerMove);
 
     // Record for next round's transition prediction
     this._lastPlayerMove = playerMove;
 
-    // Push to state (pts already applied above)
+    // Push to state
     this.state.applyRound({
       playerMove, cpuMove,
       outcome:    result.outcome,
@@ -163,7 +176,7 @@ export class Game {
       return;
     }
 
-    // Player killed CPU / Opponent
+    // Player killed Opponent
     if (!this.cpu.alive) {
       const pot = this.player.matchPts + this.cpu.matchPts;
       this.player.addToProfile(pot);
@@ -171,7 +184,7 @@ export class Game {
       return;
     }
 
-    // CPU / Opponent killed player
+    // Opponent killed player
     if (!this.player.alive) {
       const pot = this.player.matchPts + this.cpu.matchPts;
       this.cpu.addToProfile(pot);
@@ -189,14 +202,10 @@ export class Game {
   getProfilePts() { return this.player.profilePts; }
   getCpuProfilePts() { return this.cpu.profilePts; }
 
-  getCpuMemorySize() { 
-    return this.isP2P ? 0 : this.cpu.getMemorySize(); 
+  getCpuMemorySize() {
+    return this.isP2P ? 0 : this.cpu.getMemorySize();
   }
 
-  /**
-   * Reset BOTH player profile AND CPU learned memory AND CPU profile pts.
-   * This is the "wipe" option on the menu.
-   */
   resetAll() {
     this.player.resetProfile();
     this.cpu.resetProfile();
@@ -208,6 +217,7 @@ export class Game {
   resetP2P() {
     localStorage.removeItem('sos_p2p_profile_pts');
     localStorage.removeItem('sos_p2p_opponent_pts');
+    Storage.resetP2PHistory();
     if (this.isP2P) {
       this.player.resetProfile();
       this.cpu.resetProfile();
