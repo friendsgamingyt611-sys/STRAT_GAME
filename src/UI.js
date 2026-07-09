@@ -18,7 +18,10 @@ import { Phase } from './State.js';
 import { MOVES, OUTCOMES, Rules } from './Rules.js';
 import { Names } from './Names.js';
 import { Storage } from './Storage.js';
+import { TacticChart } from './TacticChart.js';
 import { AI_LEVELS } from './AI.js';
+import { $all, $ } from './ui/DOM.js';
+import { NicknameEditor } from './ui/NicknameEditor.js';
 
 const LABELS = {
   [MOVES.SHOOT]: { icon: '⚡', label: 'SHOOT', sub: '1 unit · kills idler' },
@@ -65,6 +68,17 @@ export class UI {
     this.p2pHistoryRecorded = false;
 
     this._bind();
+    this.nicknameEditor = new NicknameEditor({
+      inputEl: this.p2pNicknameInput,
+      displayEl: this.p2pNicknameDisplay,
+      buttonEl: this.btnEditNickname,
+      onSave: (name) => {
+        this.localNickname = name;
+        this.game.player.name = `${this.localNickname} (You)`;
+        this._renderP2PLeaderboard();
+      },
+    });
+    this.localNickname = this.nicknameEditor.getNickname();
     this._attachListeners();
     this.game.state.subscribe(s => this._onStateChange(s));
     this._showScreen('menu');
@@ -86,8 +100,6 @@ export class UI {
 
   // ─── Element binding ─────────────────────────────────────
   _bind() {
-    const $ = id => document.getElementById(id);
-
     this.screens = {
       menu: $('screen-menu'),
       game: $('screen-game'),
@@ -141,7 +153,7 @@ export class UI {
     this.opponentMoveLabel    = $('opponent-move-label');
 
     // AI Level UI
-    this.aiLevelBtns          = document.querySelectorAll('.ai-lvl-btn');
+    this.aiLevelBtns          = $all('.ai-lvl-btn');
     this.aiLevelName          = $('ai-level-name');
     this.btnAiLevelInfo       = $('btn-ai-level-info');
     this.aiLevelInfoModal     = $('ai-level-info-modal');
@@ -153,8 +165,8 @@ export class UI {
     this.btnCloseTutorial     = $('btn-close-tutorial');
     this.btnTutorialPrev      = $('btn-tutorial-prev');
     this.btnTutorialNext      = $('btn-tutorial-next');
-    this.tutorialSlides       = document.querySelectorAll('.tutorial-slide');
-    this.tutorialDots         = document.querySelectorAll('.tut-dot');
+    this.tutorialSlides       = $all('.tutorial-slide');
+    this.tutorialDots         = $all('.tut-dot');
 
     // Timer UI
     this.elTimerBar = $('timer-bar');
@@ -221,19 +233,35 @@ export class UI {
 
     // P2P Matchmaking
     this.btnP2PCreate.addEventListener('click', () => {
-      if (this.p2pConn) {
-        this._handleP2PStartClick();
-      } else {
+      if (this.p2pLobbyState === 'idle') {
         this._initP2PAsHost();
+        return;
       }
+      if (this.p2pLobbyState === 'waiting') {
+        this._disconnectP2P();
+        return;
+      }
+      if (this.p2pLobbyState === 'connected' && this.p2pIsHost) {
+        this._handleP2PStartClick();
+        return;
+      }
+      this._disconnectP2P();
     });
 
     this.btnP2PJoin.addEventListener('click', () => {
-      if (this.p2pConn) {
-        this._handleP2PStartClick();
-      } else {
+      if (this.p2pLobbyState === 'idle') {
         this._joinP2P();
+        return;
       }
+      if (this.p2pLobbyState === 'waiting') {
+        this._disconnectP2P();
+        return;
+      }
+      if (this.p2pLobbyState === 'connected' && !this.p2pIsHost) {
+        this._handleP2PStartClick();
+        return;
+      }
+      this._disconnectP2P();
     });
 
     this.btnResetP2P.addEventListener('click', () => {
@@ -243,41 +271,8 @@ export class UI {
       }
     });
 
-    // Nickname inline editing flow
-    this.nicknameMode = 'read';
-    this._updateNicknameUI('read');
-
-    this.btnEditNickname?.addEventListener('click', () => {
-      if (this.nicknameMode === 'edit') {
-        const val = this.p2pNicknameInput?.value?.trim();
-        if (val && val !== this.localNickname) {
-          Names.save(val);
-          this.localNickname = val;
-          // Sync with profile and leaderboards immediately
-          const localSaved = localStorage.getItem('sos_p2p_profile_pts');
-          const localPts = localSaved !== null ? parseInt(localSaved, 10) : 0;
-          Storage.saveP2PLeaderboard(this.localNickname, localPts);
-          this._renderP2PLeaderboard();
-        }
-        this._updateNicknameUI('read');
-      } else {
-        this._updateNicknameUI('edit');
-        this.p2pNicknameInput?.focus();
-      }
-    });
-
-    this.p2pNicknameInput?.addEventListener('input', () => {
-      this._checkSaveButtonState();
-    });
-
-    this.p2pNicknameInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        const val = this.p2pNicknameInput?.value?.trim();
-        if (val && val !== this.localNickname) {
-          this.btnEditNickname?.click();
-        }
-      }
-    });
+    // Nickname inline editing handled by NicknameEditor.
+    // The editor updates this.localNickname and refreshes the leaderboard when a new nickname is saved.
 
     // AI Level selector
     this.aiLevelBtns.forEach(btn => {
@@ -730,6 +725,12 @@ export class UI {
     const tacticRoundsEl = document.getElementById('tactic-rounds');
     const canvas = document.getElementById('tactic-chart');
 
+    if (!this.game.cpu || !this.game.cpu._mem) {
+      if (currentTacticEl) currentTacticEl.textContent = 'MULTIPLAYER';
+      if (tacticRoundsEl) tacticRoundsEl.textContent = 'N/A';
+      return;
+    }
+
     const freq = this.game.cpu._mem.freq;
     const total = this.game.cpu._mem.total;
 
@@ -776,117 +777,7 @@ export class UI {
       currentTacticEl.style.borderColor = badgeBorder;
     }
 
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
-    const dpr = window.devicePixelRatio || 1;
-    const displayWidth = 220;
-    const displayHeight = 190;
-
-    canvas.width = displayWidth * dpr;
-    canvas.height = displayHeight * dpr;
-    canvas.style.width = `${displayWidth}px`;
-    canvas.style.height = `${displayHeight}px`;
-
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, displayWidth, displayHeight);
-
-    const w = displayWidth;
-    const h = displayHeight;
-
-    // Center & radius of radar chart
-    const cx = w / 2;
-    const cy = h / 2 + 10;
-    const r = 60;
-
-    // Angles for the 3 pure tactic vertices
-    const angles = [-Math.PI / 2, Math.PI / 6, 5 * Math.PI / 6];
-    const vertices = angles.map(a => ({
-      x: cx + r * Math.cos(a),
-      y: cy + r * Math.sin(a)
-    }));
-
-    // Draw background concentric web triangles
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.lineWidth = 1;
-    for (let factor = 0.25; factor <= 1; factor += 0.25) {
-      ctx.beginPath();
-      angles.forEach((a, i) => {
-        const x = cx + r * factor * Math.cos(a);
-        const y = cy + r * factor * Math.sin(a);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.closePath();
-      ctx.stroke();
-    }
-
-    // Draw axis lines from center to vertices
-    ctx.beginPath();
-    vertices.forEach(v => {
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(v.x, v.y);
-    });
-    ctx.stroke();
-
-    // Draw label text at vertices
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '9px "Share Tech Mono", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // Top: Slayer (Shoot)
-    ctx.fillText('SLAYER (⚡)', vertices[0].x, vertices[0].y - 12);
-    // Bottom Right: Guardian (Shield)
-    ctx.textAlign = 'left';
-    ctx.fillText('GUARDIAN (🛡)', vertices[1].x + 5, vertices[1].y + 5);
-    // Bottom Left: Hoarder (Idle)
-    ctx.textAlign = 'right';
-    ctx.fillText('HOARDER (◎)', vertices[2].x - 5, vertices[2].y + 5);
-
-    // Calculate rates and plot player playstyle state on the spider web
-    if (total >= 3) {
-      const sRate = (freq.shoot ?? 0) / total;
-      const shRate = (freq.shield ?? 0) / total;
-      const iRate = (freq.idle ?? 0) / total;
-
-      // Plot area connecting points on the 3 axes
-      ctx.fillStyle = 'rgba(234, 179, 8, 0.15)';
-      ctx.strokeStyle = 'var(--accent)';
-      ctx.lineWidth = 1.5;
-
-      ctx.beginPath();
-      // Shoot point
-      ctx.moveTo(cx + r * sRate * Math.cos(angles[0]), cy + r * sRate * Math.sin(angles[0]));
-      // Shield point
-      ctx.lineTo(cx + r * shRate * Math.cos(angles[1]), cy + r * shRate * Math.sin(angles[1]));
-      // Idle point
-      ctx.lineTo(cx + r * iRate * Math.cos(angles[2]), cy + r * iRate * Math.sin(angles[2]));
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Draw dot markers at each axis value
-      const rates = [sRate, shRate, iRate];
-      const colors = ['var(--shoot)', 'var(--shield)', 'var(--idle)'];
-      rates.forEach((rate, idx) => {
-        ctx.beginPath();
-        const dx = cx + r * rate * Math.cos(angles[idx]);
-        const dy = cy + r * rate * Math.sin(angles[idx]);
-        ctx.arc(dx, dy, 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = colors[idx];
-        ctx.lineWidth = 2;
-        ctx.fill();
-        ctx.stroke();
-      });
-    } else {
-      // Draw a default small pulse in the center (uninitialized/analyzing)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.beginPath();
-      ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    TacticChart.draw(canvas, freq, total);
   }
 
   _renderHUD(state) {
@@ -1152,7 +1043,7 @@ export class UI {
     this.p2pIsHost = true;
     this.p2pLobbyState = 'waiting';
     this.p2pCreateStatus.style.display = 'block';
-    this.p2pCreateStatus.textContent = 'Initializing PeerJS...';
+    this.p2pCreateStatus.textContent = 'Creating Room...';
     
     if (this.p2pNicknameInput) this.p2pNicknameInput.disabled = true;
     if (this.btnEditNickname) this.btnEditNickname.disabled = true;
@@ -1335,9 +1226,9 @@ export class UI {
         this.p2pOpponentReadyRestart = false;
         this.p2pHistoryRecorded = false;
 
+        this.game.switchToP2P(true);
         this.game.player.name = `${this.localNickname} (You)`;
         this.game.cpu.name = `${this.remoteNickname} (Opponent)`;
-        this.game.switchToP2P(true);
         this.game.start();
 
         if (this.playerHudLabel) this.playerHudLabel.textContent = this.game.player.name;
@@ -1370,8 +1261,7 @@ export class UI {
   _updateP2PLobbyUI() {
     if (this.p2pLobbyState !== 'idle') {
       this.p2pRoomInput.style.display = 'none';
-      if (this.p2pNicknameInput) this.p2pNicknameInput.disabled = true;
-      if (this.btnEditNickname) this.btnEditNickname.disabled = true;
+      this.nicknameEditor?.setDisabled(true);
       const separator = document.querySelector('.p2p-separator');
       if (separator) separator.style.display = 'none';
     }
@@ -1465,8 +1355,7 @@ export class UI {
     this.p2pRoomInput.style.display = 'block';
     this.p2pRoomInput.disabled = false;
 
-    if (this.p2pNicknameInput) this.p2pNicknameInput.disabled = false;
-    if (this.btnEditNickname) this.btnEditNickname.disabled = false;
+    this.nicknameEditor?.setDisabled(false);
 
     const separator = document.querySelector('.p2p-separator');
     if (separator) separator.style.display = 'block';
@@ -1527,47 +1416,6 @@ export class UI {
     this.currentSlideIndex = index;
   }
 
-  _updateNicknameUI(mode) {
-    this.nicknameMode = mode;
-    if (mode === 'read') {
-      if (this.p2pNicknameDisplay) {
-        this.p2pNicknameDisplay.textContent = this.localNickname;
-        this.p2pNicknameDisplay.style.display = 'inline-block';
-      }
-      if (this.p2pNicknameInput) {
-        this.p2pNicknameInput.style.display = 'none';
-      }
-      if (this.btnEditNickname) {
-        this.btnEditNickname.textContent = 'EDIT';
-        this.btnEditNickname.disabled = false;
-        this.btnEditNickname.className = 'btn-nick-action';
-      }
-    } else {
-      if (this.p2pNicknameDisplay) {
-        this.p2pNicknameDisplay.style.display = 'none';
-      }
-      if (this.p2pNicknameInput) {
-        this.p2pNicknameInput.style.display = 'inline-block';
-        this.p2pNicknameInput.value = this.localNickname;
-      }
-      if (this.btnEditNickname) {
-        this.btnEditNickname.textContent = 'SAVE';
-      }
-      this._checkSaveButtonState();
-    }
-  }
-
-  _checkSaveButtonState() {
-    if (!this.p2pNicknameInput || !this.btnEditNickname) return;
-    const currentVal = this.p2pNicknameInput.value.trim();
-    if (currentVal === '' || currentVal === this.localNickname) {
-      this.btnEditNickname.disabled = true;
-      this.btnEditNickname.className = 'btn-nick-action save-dimmed';
-    } else {
-      this.btnEditNickname.disabled = false;
-      this.btnEditNickname.className = 'btn-nick-action save-active';
-    }
-  }
 
   _openTutorial() {
     if (this.howToPlayModal) {

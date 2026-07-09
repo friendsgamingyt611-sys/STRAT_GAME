@@ -1,5 +1,7 @@
 # Shoot Or Shield (SOS)
 
+Version: v2.3
+
 A tactical, survival-based strategic game of risk and resource management.
 
 ## Game Mechanics
