@@ -14,7 +14,7 @@
  *
  * CPU style is NEVER revealed to the player.
  */
-
+console.log("UI.JS TOP-LEVEL EXECUTED");
 import { Phase } from './State.js';
 import { MOVES, OUTCOMES, Rules } from './Rules.js';
 
@@ -88,8 +88,41 @@ export class UI {
     this.elLbCpuPts = $('lb-cpu-pts');
     this.elPlayerCrown = $('player-crown');
     this.elCpuCrown = $('cpu-crown');
-    this.elArmBadgeMenu = $('arm-badge-menu');
-    this.elArmBadgeGame = $('arm-badge-game');
+
+    // Tabs
+    this.tabComputer          = $('tab-computer');
+    this.tabMultiplayer       = $('tab-multiplayer');
+    this.modeComputerContent  = $('mode-computer-content');
+    this.modeMultiplayerContent = $('mode-multiplayer-content');
+    this.menuGameModeSubtitle = $('menu-game-mode-subtitle');
+
+    // P2P Profile & Leaderboard
+    this.p2pProfilePts        = $('p2p-profile-pts');
+    this.lbP2PPlayerPts       = $('lb-p2p-player-pts');
+    this.lbP2POpponentPts     = $('lb-p2p-opponent-pts');
+    this.p2pPlayerCrown       = $('p2p-player-crown');
+    this.p2pOpponentCrown     = $('p2p-opponent-crown');
+    this.btnResetP2P          = $('btn-reset-p2p');
+
+    // P2P Setup
+    this.btnP2PCreate         = $('btn-p2p-create');
+    this.p2pCreateStatus      = $('p2p-create-status');
+    this.btnP2PJoin           = $('btn-p2p-join');
+    this.p2pRoomInput         = $('p2p-room-input');
+    this.p2pJoinStatus        = $('p2p-join-status');
+
+    // Dynamic Labels
+    this.opponentHudLabel     = $('opponent-hud-label');
+    this.opponentMoveLabel    = $('opponent-move-label');
+
+    // Tutorial Modal
+    this.btnHowToPlay         = $('btn-how-to-play');
+    this.howToPlayModal       = $('how-to-play-modal');
+    this.btnCloseTutorial     = $('btn-close-tutorial');
+    this.btnTutorialPrev      = $('btn-tutorial-prev');
+    this.btnTutorialNext      = $('btn-tutorial-next');
+    this.tutorialSlides       = document.querySelectorAll('.tutorial-slide');
+    this.tutorialDots         = document.querySelectorAll('.tut-dot');
 
     // Timer UI
     this.elTimerBar = $('timer-bar');
@@ -520,7 +553,7 @@ export class UI {
     const canvas = document.getElementById('tactic-chart');
 
     const freq = this.game.cpu._mem.freq;
-    const total = this.game.cpu._mem.total; angles
+    const total = this.game.cpu._mem.total;
 
     if (tacticRoundsEl) tacticRoundsEl.textContent = total;
 
@@ -840,6 +873,8 @@ export class UI {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + c.d);
       osc.start(); osc.stop(ctx.currentTime + c.d);
     } catch (_) { }
+  }
+
   // ─── P2P Multiplayer Handlers ─────────────────────────────
   _resolveP2PTurn() {
     this._clearTimer();
