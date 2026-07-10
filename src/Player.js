@@ -8,6 +8,7 @@
  */
 
 import { Rules } from './Rules.js';
+import { Storage } from './Storage.js';
 
 export class Player {
   constructor(name = 'Player', profileKey = 'sos_profile_pts') {
@@ -15,7 +16,7 @@ export class Player {
     this.profileKey = profileKey;
 
     // Load profile pts from localStorage (human player only)
-    const saved = localStorage.getItem(this.profileKey);
+    const saved = Storage.getItem(this.profileKey);
     this.profilePts = saved !== null ? parseInt(saved, 10) : 0;
 
     this.matchPts  = 0;
@@ -27,12 +28,12 @@ export class Player {
   // ─── Profile ───────────────────────────────────────
   addToProfile(pts) {
     this.profilePts += pts;
-    localStorage.setItem(this.profileKey, this.profilePts);
+    Storage.setItem(this.profileKey, this.profilePts);
   }
 
   resetProfile() {
     this.profilePts = 0;
-    localStorage.removeItem(this.profileKey);
+    Storage.removeItem(this.profileKey);
   }
 
   // ─── Match ─────────────────────────────────────────

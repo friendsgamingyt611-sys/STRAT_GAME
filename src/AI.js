@@ -19,6 +19,7 @@
  */
 
 import { MOVES } from './Rules.js';
+import { Storage } from './Storage.js';
 
 const MEMORY_KEY = 'sos_cpu_memory';
 const MOVES_LIST = [MOVES.SHOOT, MOVES.SHIELD, MOVES.IDLE];
@@ -78,7 +79,7 @@ export class AI {
     this._totalPredictions   = 0;
     this._lastPredicted = null;
 
-    const saved = localStorage.getItem(CPU_PROFILE_KEY);
+    const saved = Storage.getItem(CPU_PROFILE_KEY);
     this.profilePts = saved !== null ? parseInt(saved, 10) : 0;
   }
 
@@ -90,12 +91,12 @@ export class AI {
 
   addToProfile(pts) {
     this.profilePts += pts;
-    localStorage.setItem(CPU_PROFILE_KEY, this.profilePts);
+    Storage.setItem(CPU_PROFILE_KEY, this.profilePts);
   }
 
   resetProfile() {
     this.profilePts = 0;
-    localStorage.removeItem(CPU_PROFILE_KEY);
+    Storage.removeItem(CPU_PROFILE_KEY);
   }
 
   // ─── Match lifecycle ────────────────────────────────────
@@ -383,7 +384,7 @@ export class AI {
   // ─── Memory persistence ─────────────────────────────────
   _loadMemory() {
     try {
-      const raw = localStorage.getItem(MEMORY_KEY);
+      const raw = Storage.getItem(MEMORY_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed.freq && parsed.after && typeof parsed.total === 'number') {
@@ -399,13 +400,13 @@ export class AI {
   }
 
   _saveMemory() {
-    try { localStorage.setItem(MEMORY_KEY, JSON.stringify(this._mem)); } catch (_) {}
+    try { Storage.setItem(MEMORY_KEY, JSON.stringify(this._mem)); } catch (_) {}
   }
 
   /** Wipe all learned data */
   resetMemory() {
     this._mem = this._freshMemory();
-    localStorage.removeItem(MEMORY_KEY);
+    Storage.removeItem(MEMORY_KEY);
   }
 
   getMemorySize() { return this._mem.total; }

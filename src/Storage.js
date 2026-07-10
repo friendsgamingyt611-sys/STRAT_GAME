@@ -1,44 +1,58 @@
 /**
  * Storage.js — Shoot Or Shield
- * Centralized localStorage persistence manager.
- * Stores and recovers ALL game state across sessions:
- *   - Computer mode profile points
- *   - CPU profile points
- *   - CPU learned memory
- *   - P2P profile points
- *   - P2P match history leaderboard
- *   - Player nickname
- *   - AI cognition level
- *   - First-time visit flag
- *
- * Provides a single save/load interface; individual modules
- * still use their own localStorage keys for backward compat,
- * but this module manages the P2P leaderboard history.
+ * Centralized localStorage persistence manager with memory fallback.
  */
 
 const P2P_HISTORY_KEY = 'sos_p2p_match_history';
 const AI_LEVEL_KEY    = 'sos_ai_level';
 
+// Memory cache fallback for environment where localStorage is blocked/unavailable
+const memoryCache = {};
+
 export class Storage {
+  // ─── Safe Wrapper Methods ────────────────────────────
+  static getItem(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (_) {
+      return memoryCache[key] !== undefined ? memoryCache[key] : null;
+    }
+  }
+
+  static setItem(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (_) {
+      memoryCache[key] = String(value);
+    }
+  }
+
+  static removeItem(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch (_) {
+      delete memoryCache[key];
+    }
+  }
+
   // ─── AI Level ────────────────────────────────────────
   static getAILevel() {
-    const saved = localStorage.getItem(AI_LEVEL_KEY);
+    const saved = Storage.getItem(AI_LEVEL_KEY);
     return saved !== null ? parseInt(saved, 10) : 1;
   }
 
   static setAILevel(level) {
-    localStorage.setItem(AI_LEVEL_KEY, level);
+    Storage.setItem(AI_LEVEL_KEY, level);
   }
 
   // ─── P2P Match History ───────────────────────────────
   /**
    * Get the full P2P match history.
-   * Returns an array of { opponent, result, myPts, oppPts, timestamp }
    * @returns {Array}
    */
   static getP2PHistory() {
     try {
-      const raw = localStorage.getItem(P2P_HISTORY_KEY);
+      const raw = Storage.getItem(P2P_HISTORY_KEY);
       return raw ? JSON.parse(raw) : [];
     } catch (_) {
       return [];
@@ -56,7 +70,7 @@ export class Storage {
       timestamp: Date.now(),
     });
     try {
-      localStorage.setItem(P2P_HISTORY_KEY, JSON.stringify(history));
+      Storage.setItem(P2P_HISTORY_KEY, JSON.stringify(history));
     } catch (_) {}
   }
 
@@ -77,15 +91,13 @@ export class Storage {
     }
     if (updated) {
       try {
-        localStorage.setItem(P2P_HISTORY_KEY, JSON.stringify(history));
+        Storage.setItem(P2P_HISTORY_KEY, JSON.stringify(history));
       } catch (_) {}
     }
   }
 
   /**
    * Get a leaderboard from P2P history.
-   * Returns sorted array of { name, pts, wins, losses, draws }
-   * Includes the local player as well.
    * @param {string} localName - the local player's nickname
    * @returns {Array}
    */
@@ -127,6 +139,6 @@ export class Storage {
    * Clear all P2P history.
    */
   static resetP2PHistory() {
-    localStorage.removeItem(P2P_HISTORY_KEY);
+    Storage.removeItem(P2P_HISTORY_KEY);
   }
 }

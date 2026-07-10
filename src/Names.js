@@ -4,6 +4,8 @@
  * Players can edit and save their nicknames.
  */
 
+import { Storage } from './Storage.js';
+
 const ADJECTIVES = [
   'Shadow', 'Iron', 'Crimson', 'Phantom', 'Frost',
   'Silent', 'Rapid', 'Neon', 'Dark', 'Swift',
@@ -30,7 +32,7 @@ export class Names {
    * @returns {string}
    */
   static get() {
-    const saved = localStorage.getItem(NICK_KEY);
+    const saved = Storage.getItem(NICK_KEY);
     if (saved) return saved;
     const name = Names.generate();
     Names.save(name);
@@ -55,7 +57,7 @@ export class Names {
   static save(name) {
     const trimmed = (name || '').trim().slice(0, 20);
     if (trimmed) {
-      localStorage.setItem(NICK_KEY, trimmed);
+      Storage.setItem(NICK_KEY, trimmed);
     }
   }
 
@@ -64,6 +66,6 @@ export class Names {
    * @returns {string|null}
    */
   static getSaved() {
-    return localStorage.getItem(NICK_KEY);
+    return Storage.getItem(NICK_KEY);
   }
 }

@@ -215,8 +215,8 @@ export class Game {
   }
 
   resetP2P() {
-    localStorage.removeItem('sos_p2p_profile_pts');
-    localStorage.removeItem('sos_p2p_opponent_pts');
+    Storage.removeItem('sos_p2p_profile_pts');
+    Storage.removeItem('sos_p2p_opponent_pts');
     Storage.resetP2PHistory();
     if (this.isP2P) {
       this.player.resetProfile();

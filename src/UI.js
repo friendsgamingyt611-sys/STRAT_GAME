@@ -94,8 +94,8 @@ export class UI {
     });
 
     // First time entry check
-    if (!localStorage.getItem('sos_first_time')) {
-      localStorage.setItem('sos_first_time', 'false');
+    if (!Storage.getItem('sos_first_time')) {
+      Storage.setItem('sos_first_time', 'false');
       setTimeout(() => this._openTutorial(), 500);
     }
   }
@@ -270,6 +270,7 @@ export class UI {
       if (confirm('Reset your Multiplayer points & history?')) {
         this.game.resetP2P();
         this._renderProfile();
+        this._renderP2PLeaderboard();
       }
     });
 
@@ -344,6 +345,7 @@ export class UI {
       if (confirm(`Reset your profile points AND wipe all CPU memory (${mem} rounds learned)?`)) {
         this.game.resetAll();
         this._renderProfile();
+        this._renderPlaystyleTactic();
       }
     });
 
@@ -639,7 +641,7 @@ export class UI {
     }
 
     // P2P Profile Pts rendering
-    const p2pSaved = localStorage.getItem('sos_p2p_profile_pts');
+    const p2pSaved = Storage.getItem('sos_p2p_profile_pts');
     const p2pPts = p2pSaved !== null ? parseInt(p2pSaved, 10) : 0;
     if (this.p2pProfilePts) this.p2pProfilePts.textContent = p2pPts;
 
@@ -665,7 +667,7 @@ export class UI {
 
   _renderP2PLeaderboard() {
     if (!this.p2pLeaderboardRows) return;
-    const localSaved = localStorage.getItem('sos_p2p_profile_pts');
+    const localSaved = Storage.getItem('sos_p2p_profile_pts');
     const localPts = localSaved !== null ? parseInt(localSaved, 10) : 0;
     
     // Get the board from Storage
@@ -731,7 +733,7 @@ export class UI {
     if (tacticRoundsEl) tacticRoundsEl.textContent = total;
 
     // Identify current tactic
-    let tactic = 'ANALYZING...';
+    let tactic = 'Not Enough Data,Please play few games and recheck';
     let badgeColor = 'var(--accent)';
     let badgeBg = '#191714';
     let badgeBorder = 'rgba(200, 169, 110, 0.4)';
@@ -910,7 +912,7 @@ export class UI {
 
     let profilePts = 0;
     if (isP2P) {
-      const pSaved = localStorage.getItem('sos_p2p_profile_pts');
+      const pSaved = Storage.getItem('sos_p2p_profile_pts');
       profilePts = pSaved !== null ? parseInt(pSaved, 10) : 0;
 
       // Reset P2P Play Again button states
