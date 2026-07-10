@@ -1460,60 +1460,6 @@ body.phone-arm-ui .log-panel {
     max-width: 860px;
   }
 
-  /* Game Arena Desktop view */
-  #screen-game {
-    display: grid;
-    grid-template-columns: 1fr 340px;
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas:
-      "hud log"
-      "timer log"
-      "arena log";
-    height: 100vh;
-    min-height: 0;
-  }
-  
-  .hud-bar {
-    grid-area: hud;
-    border-bottom: 1px solid var(--border);
-  }
-  
-  .timer-wrap {
-    grid-area: timer;
-    max-width: 720px;
-    margin: 1.25rem auto 0;
-    width: calc(100% - 2rem);
-  }
-  
-  .arena {
-    grid-area: arena;
-    max-width: 720px;
-    margin: 0 auto;
-    width: calc(100% - 2rem);
-    padding: 1.5rem 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    box-shadow: none;
-    background: transparent;
-    border: none;
-  }
-  
-  .log-panel {
-    grid-area: log;
-    border-top: none;
-    border-left: 1px solid var(--border);
-    max-height: none !important;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  #round-log {
-    flex-grow: 1;
-    overflow-y: auto;
-    max-height: none;
-  }
 }
 
 
