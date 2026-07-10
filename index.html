@@ -86,7 +86,7 @@
       <!-- Leaderboard card -->
       <div class="leaderboard-card">
         <div class="lb-header">
-          <span class="lb-title">PERSISTENT LEADERBOARD</span>
+          <span class="lb-title">Leaderboard</span>
         </div>
         <div class="lb-rows">
           <div class="lb-row" id="lb-row-player">
@@ -109,7 +109,7 @@
           <span class="tactic-badge" id="current-tactic">ANALYZING...</span>
         </div>
         <div class="canvas-container">
-          <canvas id="tactic-chart" width="220" height="190"></canvas>
+          <canvas id="tactic-chart" width="400" height="250"></canvas>
         </div>
         <div class="tactic-footer">
           Based on <span id="tactic-rounds">0</span> rounds of memory
@@ -132,7 +132,7 @@
       <div class="profile-card">
         <div class="profile-header-row">
           <div>
-            <div class="profile-label">P2P MULTIPLAYER PROFILE</div>
+            <div class="profile-label">MULTIPLAYER PROFILE</div>
             <div class="nickname-row">
               <span id="p2p-nickname-display" class="nickname-display"></span>
               <input type="text" id="p2p-nickname-input" class="nickname-input" maxlength="20" placeholder="Your Nickname" style="display: none;" />
@@ -142,7 +142,7 @@
               <span class="profile-pts-value" id="p2p-profile-pts">0</span>
               <span class="profile-pts-unit">pts</span>
             </div>
-            <div class="profile-note">Points earned in P2P Multiplayer</div>
+            <div class="profile-note">Points earned in Multiplayer</div>
           </div>
         </div>
       </div>
@@ -150,7 +150,7 @@
       <!-- P2P Leaderboard (dynamic, history-based) -->
       <div class="leaderboard-card">
         <div class="lb-header">
-          <span class="lb-title">P2P LEADERBOARD</span>
+          <span class="lb-title">Leaderboard</span>
         </div>
         <div class="lb-rows" id="p2p-leaderboard-rows">
           <!-- Dynamically populated -->
@@ -159,7 +159,7 @@
 
       <!-- P2P Matchmaking setup -->
       <div class="p2p-card">
-        <div class="p2p-card-header">P2P MATCHMAKING</div>
+        <div class="p2p-card-header">MATCHMAKING</div>
 
         <div class="p2p-section">
           <button id="btn-p2p-create" class="btn-primary">CREATE MATCH</button>
@@ -257,17 +257,33 @@
     <!-- Move picker -->
     <div class="move-picker" role="group" aria-label="Choose your move">
       <button class="move-btn" data-move="shoot" id="btn-shoot" aria-label="Shoot">
-        <span class="move-icon">⚡</span>
+        <span class="move-icon">
+          <svg class="move-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9l-3 7H3l2-7H3V8z"></path>
+            <path d="M9 14c0 2 2 2 2 0"></path>
+            <line x1="6" y1="8" x2="6" y2="12"></line>
+            <line x1="8" y1="8" x2="8" y2="12"></line>
+          </svg>
+        </span>
         <span class="move-name">SHOOT</span>
         <span class="move-sub">1 unit · kills idler</span>
       </button>
       <button class="move-btn" data-move="shield" id="btn-shield" aria-label="Shield">
-        <span class="move-icon">🛡</span>
+        <span class="move-icon">
+          <svg class="move-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+        </span>
         <span class="move-name">SHIELD</span>
         <span class="move-sub">1 unit · deflects shot</span>
       </button>
       <button class="move-btn" data-move="idle" id="btn-idle" aria-label="Idle">
-        <span class="move-icon">◎</span>
+        <span class="move-icon">
+          <svg class="move-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"></circle>
+            <circle cx="12" cy="12" r="4"></circle>
+          </svg>
+        </span>
         <span class="move-name">IDLE</span>
         <span class="move-sub">free · carries unit forward</span>
       </button>
@@ -318,7 +334,12 @@
         <p>Shoot Or Shield is a survival duel that continues indefinitely until one player dies.</p>
         <p class="tut-highlight">The goal isn't just to kill early; it's to force the opponent into wasting shields and idles to accumulate match points, then deliver the final strike to claim the entire pot!</p>
         <div class="tut-visual">
-          <div class="tut-box">⚡ VS ◎ &rarr; KILL</div>
+          <div class="tut-box">
+            <svg class="move-svg-inline" style="color:var(--shoot)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9l-3 7H3l2-7H3V8z"></path><path d="M9 14c0 2 2 2 2 0"></path><line x1="6" y1="8" x2="6" y2="12"></line><line x1="8" y1="8" x2="8" y2="12"></line></svg>
+            VS
+            <svg class="move-svg-inline" style="color:var(--idle)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg>
+            &rarr; KILL
+          </div>
         </div>
       </div>
       <!-- Slide 2 -->
@@ -326,20 +347,62 @@
         <h3>2. Match Rules</h3>
         <p>In every round, both players simultaneously select one of the following moves:</p>
         <ul class="tut-rules-list">
-          <li><strong>SHOOT (⚡)</strong>: Costs 1 resource unit. Eliminates an IDLE player.</li>
-          <li><strong>SHIELD (🛡)</strong>: Costs 1 resource unit. Deflects a SHOOT, scoring <strong>+1 match point</strong>.</li>
-          <li><strong>IDLE (◎)</strong>: Free. Carries unit forward. Scores <strong>+1 match point</strong> if the opponent shielded.</li>
+          <li><strong>SHOOT
+            <svg class="move-svg-inline" style="color:var(--shoot)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9l-3 7H3l2-7H3V8z"></path><path d="M9 14c0 2 2 2 2 0"></path><line x1="6" y1="8" x2="6" y2="12"></line><line x1="8" y1="8" x2="8" y2="12"></line></svg>
+          </strong>: Costs 1 resource unit. Eliminates an IDLE player.</li>
+          <li><strong>SHIELD
+            <svg class="move-svg-inline" style="color:var(--shield)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          </strong>: Costs 1 resource unit. Deflects a SHOOT, scoring <strong>+1 match point</strong>.</li>
+          <li><strong>IDLE
+            <svg class="move-svg-inline" style="color:var(--idle)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg>
+          </strong>: Free. Carries unit forward. Scores <strong>+1 match point</strong> if the opponent shielded.</li>
         </ul>
       </div>
       <!-- Slide 3 -->
       <div class="tutorial-slide" data-slide="2" style="display: none;">
         <h3>3. Matchup Matrix</h3>
         <div class="rules-grid">
-          <div class="rule-row"><span class="rule-combo">⚡ vs ◎</span><span class="rule-effect win">KILL — shooter wins match</span></div>
-          <div class="rule-row"><span class="rule-combo">⚡ vs 🛡</span><span class="rule-effect score-p">DEFLECT — shield scores +1pt</span></div>
-          <div class="rule-row"><span class="rule-combo">🛡 vs ◎</span><span class="rule-effect score-i">WASTE — idle scores +1pt</span></div>
-          <div class="rule-row"><span class="rule-combo">⚡ vs ⚡</span><span class="rule-effect dual">DUAL DEFEAT — both die</span></div>
-          <div class="rule-row"><span class="rule-combo">🛡/◎ tie</span><span class="rule-effect muted">STANDOFF — no points</span></div>
+          <div class="rule-row">
+            <span class="rule-combo">
+              <svg class="move-svg-inline" style="color:var(--shoot)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9l-3 7H3l2-7H3V8z"></path><path d="M9 14c0 2 2 2 2 0"></path><line x1="6" y1="8" x2="6" y2="12"></line><line x1="8" y1="8" x2="8" y2="12"></line></svg>
+              vs
+              <svg class="move-svg-inline" style="color:var(--idle)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg>
+            </span>
+            <span class="rule-effect win">KILL — shooter wins match</span>
+          </div>
+          <div class="rule-row">
+            <span class="rule-combo">
+              <svg class="move-svg-inline" style="color:var(--shoot)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9l-3 7H3l2-7H3V8z"></path><path d="M9 14c0 2 2 2 2 0"></path><line x1="6" y1="8" x2="6" y2="12"></line><line x1="8" y1="8" x2="8" y2="12"></line></svg>
+              vs
+              <svg class="move-svg-inline" style="color:var(--shield)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </span>
+            <span class="rule-effect score-p">DEFLECT — shield scores +1pt</span>
+          </div>
+          <div class="rule-row">
+            <span class="rule-combo">
+              <svg class="move-svg-inline" style="color:var(--shield)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              vs
+              <svg class="move-svg-inline" style="color:var(--idle)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg>
+            </span>
+            <span class="rule-effect score-i">WASTE — idle scores +1pt</span>
+          </div>
+          <div class="rule-row">
+            <span class="rule-combo">
+              <svg class="move-svg-inline" style="color:var(--shoot)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9l-3 7H3l2-7H3V8z"></path><path d="M9 14c0 2 2 2 2 0"></path><line x1="6" y1="8" x2="6" y2="12"></line><line x1="8" y1="8" x2="8" y2="12"></line></svg>
+              vs
+              <svg class="move-svg-inline" style="color:var(--shoot)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H9l-3 7H3l2-7H3V8z"></path><path d="M9 14c0 2 2 2 2 0"></path><line x1="6" y1="8" x2="6" y2="12"></line><line x1="8" y1="8" x2="8" y2="12"></line></svg>
+            </span>
+            <span class="rule-effect dual">DUAL DEFEAT — both die</span>
+          </div>
+          <div class="rule-row">
+            <span class="rule-combo">
+              <svg class="move-svg-inline" style="color:var(--shield)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              /
+              <svg class="move-svg-inline" style="color:var(--idle)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg>
+              tie
+            </span>
+            <span class="rule-effect muted">STANDOFF — no points</span>
+          </div>
         </div>
       </div>
       <!-- Slide 4 -->
