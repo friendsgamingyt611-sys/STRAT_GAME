@@ -216,7 +216,7 @@ export class UI {
       this.tabMultiplayer.classList.remove('active');
       this.modeComputerContent.style.display = 'block';
       this.modeMultiplayerContent.style.display = 'none';
-      if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'VS COMPUTER';
+      if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'LOCAL';
       this._disconnectP2P();
       this.game.switchToP2P(false);
       this._renderProfile();
@@ -227,7 +227,7 @@ export class UI {
       this.tabComputer.classList.remove('active');
       this.modeComputerContent.style.display = 'none';
       this.modeMultiplayerContent.style.display = 'block';
-      if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'VS PLAYER (P2P)';
+      if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'MULTIPLAYER';
       this._resetP2PLobbyUI();
       this.game.switchToP2P(true);
       this._renderProfile();

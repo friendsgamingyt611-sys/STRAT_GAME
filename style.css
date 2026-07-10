@@ -111,12 +111,47 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .title-block { padding-bottom: 1.25rem; }
 
-.game-title {
+.game-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-family: var(--font-mono);
-  font-size: clamp(1.6rem, 5.5vw, 2.4rem);
-  letter-spacing: 0.08em;
-  color: var(--text);
+  font-size: clamp(1.4rem, 5.5vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: 0.05em;
   line-height: 1;
+  user-select: none;
+}
+
+.logo-part {
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--r1);
+  position: relative;
+}
+
+.logo-shoot {
+  color: #000000;
+  background: var(--shoot);
+  transform: skewX(-10deg);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  font-weight: 900;
+}
+
+.logo-or {
+  font-size: 0.65em;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  padding: 0;
+}
+
+.logo-shield {
+  color: #ffffff;
+  background: transparent;
+  border: 2px solid var(--shield);
+  transform: skewX(-10deg);
+  font-weight: 900;
+  box-shadow: 0 0 10px rgba(74, 140, 196, 0.2);
 }
 
 .game-mode {
