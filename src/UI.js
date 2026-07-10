@@ -868,14 +868,18 @@ export class UI {
   _appendLog(snap) {
     const entry = snap.log[0];
     if (!entry) return;
-    const pm = LABELS[entry.playerMove];
-    const cm = LABELS[entry.cpuMove];
+
+    // Helper: returns an opaque coloured badge for a move
+    const chip = (move) => {
+      const cls = move === 'shoot' ? 'chip-shoot' : move === 'shield' ? 'chip-shield' : 'chip-idle';
+      return `<span class="log-chip ${cls}">${move.toUpperCase()}</span>`;
+    };
 
     const row = document.createElement('div');
     row.className = `log-row ${OUT_CLASS[entry.outcome] ?? ''}`;
     row.innerHTML =
       `<span class="log-round">R${entry.round}</span>` +
-      `<span class="log-moves">${pm.icon}${pm.label} <em>vs</em> ${cm.icon}${cm.label}</span>` +
+      `<span class="log-moves">${chip(entry.playerMove)}<em>vs</em>${chip(entry.cpuMove)}</span>` +
       `<span class="log-result">${this._headline(entry.outcome)}</span>`;
 
     this.logList.prepend(row);

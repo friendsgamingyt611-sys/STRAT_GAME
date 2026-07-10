@@ -573,28 +573,55 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .log-header {
   font-family: var(--font-mono);
-  font-size: 0.58rem;
-  letter-spacing: 0.2em;
-  color: var(--dim);
-  margin-bottom: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
 }
 
-.round-log { display: flex; flex-direction: column; gap: 0.2rem; }
+.round-log { display: flex; flex-direction: column; gap: 0.3rem; }
 
 .log-row {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 38px 1fr auto;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.55rem;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--muted);
-  padding: 0.18rem 0;
-  border-bottom: 1px solid rgba(255,255,255,.035);
+  padding: 0.2rem 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
 }
 
-.log-round  { color: var(--dim); }
-.log-moves em { font-style: normal; color: var(--dim); }
+/* Round number — bold, clearly visible */
+.log-round {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+/* Move chips inside log — coloured opaque badges */
+.log-moves { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+.log-moves em { font-style: normal; color: var(--dim); font-size: 0.6rem; }
+
+.log-chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.1rem 0.38rem;
+  border-radius: 3px;
+  color: #ffffff;
+  white-space: nowrap;
+}
+.log-chip.chip-shoot  { background: rgba(217, 95,  95,  0.85); }
+.log-chip.chip-shield { background: rgba(74,  140, 196, 0.85); }
+.log-chip.chip-idle   { background: rgba(100, 100, 100, 0.75); }
+
 .log-result { text-align: right; font-size: 0.65rem; }
 
 .log-row.outcome-kill-p   .log-result { color: var(--win); }
