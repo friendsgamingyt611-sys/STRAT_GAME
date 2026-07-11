@@ -82,6 +82,7 @@ export class UI {
     });
     this.localNickname = this.nicknameEditor.getNickname();
     this._attachListeners();
+    if (this.resourceUnitsInput) this.resourceUnitsInput.value = this.game.startingUnits;
     this.game.state.subscribe(s => this._onStateChange(s));
     this._showScreen('menu');
     this._renderProfile();
@@ -112,6 +113,7 @@ export class UI {
     this.elProfilePts = $('profile-pts');
     this.btnStart = $('btn-start');
     this.btnResetProfile = $('btn-reset-profile');
+    this.resourceUnitsInput = $('resource-units-input');
 
     // Leaderboard
     this.elLbPlayerPts = $('lb-player-pts');
@@ -161,7 +163,10 @@ export class UI {
     this.aiLevelInfoModal     = $('ai-level-info-modal');
     this.btnCloseAiInfo       = $('btn-close-ai-info');
 
-    // Tutorial Modal
+    // Version & Tutorial Modals
+    this.btnVersion           = $('btn-version');
+    this.versionModal         = $('version-modal');
+    this.btnCloseVersion      = $('btn-close-version');
     this.btnHowToPlay         = $('btn-how-to-play');
     this.howToPlayModal       = $('how-to-play-modal');
     this.btnCloseTutorial     = $('btn-close-tutorial');
@@ -193,6 +198,7 @@ export class UI {
     this.elResultDesc = $('result-desc');
     this.elRevealTimer = $('reveal-timer');
     this.btnContinue = $('btn-continue');
+    this.btnLeaveMatch = $('btn-leave-match');
 
     // Move picker
     this.moveBtns = document.querySelectorAll('[data-move]');
@@ -299,6 +305,14 @@ export class UI {
       if (this.aiLevelInfoModal) this.aiLevelInfoModal.style.display = 'none';
     });
 
+    // Version modal
+    this.btnVersion?.addEventListener('click', () => {
+      this._openVersionModal();
+    });
+    this.btnCloseVersion?.addEventListener('click', () => {
+      this._closeVersionModal();
+    });
+
     // Tutorial modal
     this.btnHowToPlay.addEventListener('click', () => {
       this._openTutorial();
@@ -330,7 +344,7 @@ export class UI {
     // Start local computer match
     this.btnStart.addEventListener('click', () => {
       if (this.game.isP2P) return;
-      this.game.start();
+      this.game.start(this._getStartingUnits());
       this._clearLog();
       this._showScreen('game');
       if (this.playerHudLabel) this.playerHudLabel.textContent = 'YOU';
@@ -359,10 +373,14 @@ export class UI {
       });
     });
 
-    // SKIP button (hidden in P2P)
+    // SKIP button
     this.btnContinue.addEventListener('click', () => {
       this._clearTimer();
       this._advanceAfterReveal();
+    });
+
+    this.btnLeaveMatch?.addEventListener('click', () => {
+      this._confirmLeaveMatch();
     });
 
     this.btnPlayAgain.addEventListener('click', () => {
@@ -375,7 +393,7 @@ export class UI {
           this._restartP2PGame();
         }
       } else {
-        this.game.start();
+        this.game.start(this._getStartingUnits());
         this._clearLog();
         this._showScreen('game');
         if (this.playerHudLabel) this.playerHudLabel.textContent = 'YOU';
@@ -503,7 +521,8 @@ export class UI {
     this._appendLog(snap);
     this._playTone(snap.lastOutcome);
 
-    const isTerminal = Rules.isTerminal(snap.lastOutcome);
+    const isDrawEnding = snap.playerUnits === 0 && snap.cpuUnits === 0 && snap.playerAlive && snap.cpuAlive;
+    const isTerminal = Rules.isTerminal(snap.lastOutcome) || isDrawEnding;
 
     if (isTerminal) {
       // Game over — show skip button but no countdown
@@ -511,11 +530,11 @@ export class UI {
       this.elTimerCount.textContent = '';
       this.elTimerBar.style.width = '0%';
       if (this.elTimerSel) this.elTimerSel.textContent = 'Proceeding to results…';
-      if (!this.game.isP2P) this._showSkip();
+      this._showSkip();
 
       // Auto go to game over after REVEAL_DURATION
       this._runTimer(REVEAL_DURATION, (r) => {
-        if (this.elRevealTimer) this.elRevealTimer.textContent = `→ results in ${r}s`;
+        if (this.elRevealTimer) this.elRevealTimer.textContent = `Opening Results screen in ${r}s`;
       }, () => {
         this._advanceAfterReveal();
       });
@@ -525,7 +544,7 @@ export class UI {
       this.elTimerCount.textContent = REVEAL_DURATION;
       this.elTimerBar.style.width = '100%';
       if (this.elTimerSel) this.elTimerSel.textContent = 'Next round starting…';
-      if (!this.game.isP2P) this._showSkip();
+      this._showSkip();
 
       this._runTimer(REVEAL_DURATION, (r) => {
         this.elTimerCount.textContent = r;
@@ -545,7 +564,8 @@ export class UI {
 
     if (this.game.isP2P) {
       const snap = this.game.state.snapshot();
-      const isTerminal = Rules.isTerminal(snap.lastOutcome);
+      const isDrawEnding = snap.playerUnits === 0 && snap.cpuUnits === 0 && snap.playerAlive && snap.cpuAlive;
+      const isTerminal = Rules.isTerminal(snap.lastOutcome) || isDrawEnding;
       if (isTerminal) {
         this.game.advance();
         setTimeout(() => this._showGameOver(this.game.state.snapshot()), 50);
@@ -814,6 +834,45 @@ export class UI {
     }
   }
 
+  _getStartingUnits() {
+    if (!this.resourceUnitsInput) return this.game.startingUnits;
+    const parsed = parseInt(this.resourceUnitsInput.value, 10);
+    const value = Number.isFinite(parsed) ? parsed : 10;
+    return Math.max(1, Math.min(30, value));
+  }
+
+  _openVersionModal() {
+    if (this.versionModal) this.versionModal.style.display = 'flex';
+  }
+
+  _closeVersionModal() {
+    if (this.versionModal) this.versionModal.style.display = 'none';
+  }
+
+  _confirmLeaveMatch() {
+    const explanation = this.game.isP2P
+      ? 'Leaving now ends the match for both players and counts as a self-defeat. Your opponent receives the win and the full pot.'
+      : 'Leaving now ends the match and counts as a self-defeat. The computer wins and takes the full pot.';
+
+    if (!confirm(`Leave this match?\n\n${explanation}`)) return;
+    this._resolveLeaveMatch();
+  }
+
+  _resolveLeaveMatch() {
+    this._clearTimer();
+    this._hideSkip();
+    const pot = this.game.state.playerMatchPts + this.game.state.cpuMatchPts;
+
+    if (this.game.isP2P) {
+      this.p2p.send({ type: 'LEAVE_MATCH' });
+      this.game.finishMatch('cpu', pot);
+    } else {
+      this.game.finishMatch('cpu', pot);
+    }
+
+    this._showGameOver(this.game.state.snapshot());
+  }
+
   _refreshMoveBtns() {
     this.moveBtns.forEach(btn => {
       const move = btn.dataset.move;
@@ -934,12 +993,13 @@ export class UI {
     }
 
     const pot = state.playerMatchPts + state.cpuMatchPts;
-    const titleMap = { 
-      player: '— VICTORY —', 
-      cpu: '— DEFEATED —', 
-      dual_defeat: '— DUAL DEFEAT —' 
+    const titleMap = {
+      player: '— VICTORY —',
+      cpu: '— DEFEATED —',
+      dual_defeat: '— DUAL DEFEAT —',
+      draw: '— DRAW —'
     };
-    const clsMap = { player: 'end-win', cpu: 'end-lose', dual_defeat: 'end-dual' };
+    const clsMap = { player: 'end-win', cpu: 'end-lose', dual_defeat: 'end-dual', draw: 'end-draw' };
 
     this.elEndTitle.textContent = titleMap[state.winner] ?? 'GAME OVER';
     this.elEndTitle.className = `end-title ${clsMap[state.winner] ?? ''}`;
@@ -948,7 +1008,9 @@ export class UI {
       ? `<tr class="pts-row"><td>Points Claimed</td><td class="col-win">+${state.ptsAwarded}</td></tr>`
       : state.winner === 'dual_defeat'
         ? `<tr class="pts-row"><td>Pot Burned</td><td class="col-dual">${pot} pts lost</td></tr>`
-        : `<tr class="pts-row"><td>Points Lost</td><td class="col-lose">${state.playerMatchPts}</td></tr>`;
+        : state.winner === 'draw'
+          ? `<tr class="pts-row"><td>Points Kept</td><td class="col-win">${state.playerMatchPts} / ${state.cpuMatchPts}</td></tr>`
+          : `<tr class="pts-row"><td>Points Lost</td><td class="col-lose">${state.playerMatchPts}</td></tr>`;
 
     const oppLabel = isP2P ? 'Opponent' : 'CPU';
     const learnRow = isP2P 
@@ -1029,7 +1091,7 @@ export class UI {
   _restartP2PGame() {
     this.p2p.localReadyRestart = false;
     this.p2p.opponentReadyRestart = false;
-    this.game.start();
+    this.game.start(this._getStartingUnits());
     this._clearLog();
     this._showScreen('game');
     this._renderHUD(this.game.state.snapshot());
@@ -1143,6 +1205,10 @@ export class UI {
       if (this.p2p.localReadyRestart) {
         this._restartP2PGame();
       }
+    } else if (data.type === 'LEAVE_MATCH') {
+      const pot = this.game.state.playerMatchPts + this.game.state.cpuMatchPts;
+      this.game.finishMatch('player', pot);
+      this._showGameOver(this.game.state.snapshot());
     } else if (data.type === 'DISCONNECT') {
       this.handleP2PDisconnect();
     }
@@ -1201,7 +1267,7 @@ export class UI {
         this.game.switchToP2P(true);
         this.game.player.name = `${this.localNickname} (You)`;
         this.game.cpu.name = `${this.remoteNickname} (Opponent)`;
-        this.game.start();
+        this.game.start(this._getStartingUnits());
 
         if (this.playerHudLabel) this.playerHudLabel.textContent = this.game.player.name;
         if (this.opponentHudLabel) this.opponentHudLabel.textContent = this.game.cpu.name;
@@ -1354,6 +1420,15 @@ export class UI {
   }
 
   _handleP2PDisconnect() {
+    const activeMatch = this.game.isP2P && [Phase.SELECTING, Phase.REVEALING].includes(this.game.state.phase);
+    if (activeMatch) {
+      this.p2p.disconnect();
+      const pot = this.game.state.playerMatchPts + this.game.state.cpuMatchPts;
+      this.game.finishMatch('player', pot);
+      this._showGameOver(this.game.state.snapshot());
+      return;
+    }
+
     alert('Opponent disconnected or left match.');
     this._disconnectP2P();
     this._renderProfile();

@@ -31,13 +31,24 @@
   <div class="menu-shell">
 
     <header class="title-block">
-      <div class="game-logo" aria-label="Shoot Or Shield">
-        <span class="logo-part logo-shoot">SHOOT</span>
-        <span class="logo-part logo-or">OR</span>
-        <span class="logo-part logo-shield">SHIELD</span>
+      <div class="logo-row">
+        <div class="game-logo" aria-label="Shoot Or Shield">
+          <span class="logo-part logo-shoot">SHOOT</span>
+          <span class="logo-part logo-or">OR</span>
+          <span class="logo-part logo-shield">SHIELD</span>
+        </div>
+        <button id="btn-version" class="version-pill" type="button" aria-label="Open version notes">v3.0</button>
       </div>
       <div class="game-mode" id="menu-game-mode-subtitle">LOCAL</div>
     </header>
+
+    <div class="setup-card">
+      <label class="setup-label" for="resource-units-input">STARTING RESOURCE UNITS</label>
+      <div class="resource-row">
+        <input id="resource-units-input" class="resource-input" type="number" min="1" max="30" step="1" value="10" />
+        <span class="resource-help">Each player starts with this pool. When it runs out, they can only idle.</span>
+      </div>
+    </div>
 
     <div class="divider"></div>
 
@@ -256,8 +267,9 @@
       <div class="reveal-timer" id="reveal-timer"></div>
     </div>
 
-    <!-- Continue (skip reveal) — hidden during P2P -->
+    <!-- Continue (skip reveal) -->
     <button id="btn-continue" class="btn-continue" hidden aria-label="Skip to next round">SKIP →</button>
+    <button id="btn-leave-match" class="btn-ghost btn-leave-match" type="button">LEAVE MATCH</button>
 
     <!-- Move picker -->
     <div class="move-picker" role="group" aria-label="Choose your move">
@@ -428,6 +440,25 @@
         <span class="tut-dot" data-slide="3"></span>
       </div>
       <button id="btn-tutorial-next" class="btn-ghost">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     VERSION POPUP
+     ═══════════════════════════════════════ -->
+<div id="version-modal" class="modal-overlay" style="display: none;">
+  <div class="modal-content modal-sm">
+    <button id="btn-close-version" class="modal-close-btn" aria-label="Close version notes">×</button>
+    <h3 style="margin-top: 0;">Release v3.0</h3>
+    <div class="tutorial-slide active">
+      <p>This release changes the pacing, match endings, and the way players leave or finish a duel.</p>
+      <ul class="tut-rules-list">
+        <li><strong>Fixed starting units:</strong> each match begins with a chosen resource pool, and once it is spent, idle is the only option left.</li>
+        <li><strong>Draw rule:</strong> if both players exhaust their units while still alive, the match ends in a draw.</li>
+        <li><strong>Leave-match handling:</strong> leaving now counts as a self-defeat and ends the match for both sides.</li>
+        <li><strong>Results flow:</strong> match endings now open the results screen immediately, with a manual skip option.</li>
+      </ul>
     </div>
   </div>
 </div>

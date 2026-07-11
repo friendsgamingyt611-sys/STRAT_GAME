@@ -111,6 +111,78 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 .title-block { padding-bottom: 1.25rem; }
 
+.logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.version-pill {
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.04);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.16em;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  transition: border-color .12s, background .12s, transform .12s;
+}
+
+.version-pill:hover {
+  border-color: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.08);
+  transform: translateY(-1px);
+}
+
+.setup-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 1rem 1.05rem;
+  margin-top: 0.5rem;
+}
+
+.setup-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin-bottom: 0.55rem;
+}
+
+.resource-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.resource-input {
+  width: min(100%, 180px);
+  padding: 0.7rem 0.8rem;
+  background: #0a0a0c;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+}
+
+.resource-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.resource-help {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
 .game-logo {
   display: inline-flex;
   align-items: center;
@@ -497,6 +569,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   transition: border-color .12s, color .12s;
 }
 .btn-continue:hover { border-color: var(--accent); color: var(--text); }
+
+.btn-leave-match {
+  margin-top: 0.75rem;
+  border-color: rgba(255,255,255,0.12);
+}
 
 /* Move picker */
 .move-picker {

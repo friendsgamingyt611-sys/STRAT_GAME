@@ -37,9 +37,9 @@ export class Player {
   }
 
   // ─── Match ─────────────────────────────────────────
-  startMatch() {
+  startMatch(startingUnits = 0) {
     this.matchPts = 0;
-    this.units    = 0;
+    this.units    = Math.max(0, startingUnits);
     this.alive    = true;
     this.history  = [];
   }

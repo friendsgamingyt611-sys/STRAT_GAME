@@ -18,6 +18,7 @@ export class Game {
     this.state           = new State();
     this._lastPlayerMove = null;
     this.isP2P           = false;
+    this.startingUnits   = 10;
 
     // Restore AI level from storage
     this.cpu.setLevel(Storage.getAILevel());
@@ -49,9 +50,10 @@ export class Game {
   }
 
   /** Start / restart a match */
-  start() {
-    this.player.startMatch();
-    this.cpu.startMatch();
+  start(startingUnits = this.startingUnits) {
+    this.startingUnits = Math.max(1, Math.min(50, parseInt(startingUnits, 10) || 10));
+    this.player.startMatch(this.startingUnits);
+    this.cpu.startMatch(this.startingUnits);
     this._lastPlayerMove = null;
 
     this.state.reset();
@@ -61,10 +63,8 @@ export class Game {
     this.state._notify();
   }
 
-  /** Grant +1 unit to both at the start of every round */
+  /** Sync the HUD with the current remaining units */
   _grantUnits() {
-    this.player.gainUnit();
-    this.cpu.gainUnit();
     this.state.playerUnits = this.player.units;
     this.state.cpuUnits    = this.cpu.units;
   }
@@ -192,10 +192,27 @@ export class Game {
       return;
     }
 
+    // Both alive but both resources exhausted — draw
+    if (this.player.alive && this.cpu.alive && this.player.units === 0 && this.cpu.units === 0) {
+      this.state.endMatch('draw', 0);
+      return;
+    }
+
     // Continue — advance to next round
     this.state.advanceRound();
-    this._grantUnits();
     this.state.setPhase(Phase.SELECTING);
+  }
+
+  finishMatch(winner, pot = this.player.matchPts + this.cpu.matchPts) {
+    if (winner === 'player') {
+      this.player.addToProfile(pot);
+      this.state.endMatch('player', pot);
+    } else if (winner === 'cpu') {
+      this.cpu.addToProfile(pot);
+      this.state.endMatch('cpu', pot);
+    } else if (winner === 'draw') {
+      this.state.endMatch('draw', 0);
+    }
   }
 
   // ─── Profile & memory ────────────────────────────────────

@@ -100,8 +100,8 @@ export class AI {
   }
 
   // ─── Match lifecycle ────────────────────────────────────
-  startMatch() {
-    this.units    = 0;
+  startMatch(startingUnits = 0) {
+    this.units    = Math.max(0, startingUnits);
     this.matchPts = 0;
     this.alive    = true;
     this._lastCpuMove = null;
