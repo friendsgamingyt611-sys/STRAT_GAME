@@ -82,6 +82,7 @@ export class UI {
     });
     this.localNickname = this.nicknameEditor.getNickname();
     this._attachListeners();
+    this._placeResourceSettingsCard();
     if (this.resourceUnitsInput) this.resourceUnitsInput.value = this.game.startingUnits;
     this.game.state.subscribe(s => this._onStateChange(s));
     this._showScreen('menu');
@@ -127,6 +128,10 @@ export class UI {
     this.modeComputerContent  = $('mode-computer-content');
     this.modeMultiplayerContent = $('mode-multiplayer-content');
     this.menuGameModeSubtitle = $('menu-game-mode-subtitle');
+    this.resourceSettingsCard = $('resource-settings-card');
+    this.aiLevelCard          = $('ai-level-card');
+    this.p2pLeaderboardCard   = $('p2p-leaderboard-card');
+    this.p2pMatchmakingCard   = $('p2p-card');
 
     // P2P Profile & Leaderboard
     this.p2pProfilePts        = $('p2p-profile-pts');
@@ -167,6 +172,7 @@ export class UI {
     this.btnVersion           = $('btn-version');
     this.versionModal         = $('version-modal');
     this.btnCloseVersion      = $('btn-close-version');
+    this.versionSlideStack    = $('version-slide-stack');
     this.btnHowToPlay         = $('btn-how-to-play');
     this.howToPlayModal       = $('how-to-play-modal');
     this.btnCloseTutorial     = $('btn-close-tutorial');
@@ -225,6 +231,7 @@ export class UI {
       if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'LOCAL';
       this._disconnectP2P();
       this.game.switchToP2P(false);
+      this._placeResourceSettingsCard();
       this._renderProfile();
     });
 
@@ -236,6 +243,7 @@ export class UI {
       if (this.menuGameModeSubtitle) this.menuGameModeSubtitle.textContent = 'MULTIPLAYER';
       this._resetP2PLobbyUI();
       this.game.switchToP2P(true);
+      this._placeResourceSettingsCard();
       this._renderProfile();
     });
 
@@ -841,7 +849,63 @@ export class UI {
     return Math.max(1, Math.min(30, value));
   }
 
+  _placeResourceSettingsCard() {
+    if (!this.resourceSettingsCard) return;
+    if (this.tabComputer.classList.contains('active') && this.aiLevelCard) {
+      this.aiLevelCard.insertAdjacentElement('afterend', this.resourceSettingsCard);
+      return;
+    }
+    if (this.p2pLeaderboardCard) {
+      this.p2pLeaderboardCard.insertAdjacentElement('afterend', this.resourceSettingsCard);
+    }
+  }
+
+  _renderVersionSlides() {
+    if (!this.versionSlideStack || this.versionSlideStack.children.length) return;
+
+    const versions = [
+      {
+        version: 'v3.1',
+        title: 'Release v3.1',
+        details: [
+          'Match Resource units is now the menu label and appears under CPU COGNITION LEVEL in local mode.',
+          'In multiplayer mode the same panel is shown below Leaderboard and above Matchmaking.',
+          'A dedicated How to Play slide now explains the version 3.1 fixed-resource match flow.'
+        ]
+      },
+      {
+        version: 'v3.0',
+        title: 'Release v3.0',
+        details: [
+          'Fixed starting units: each match begins with a chosen resource pool, and once it is spent idle is the only option left.',
+          'Draw rule: if both players exhaust their units while still alive, the match ends in a draw.',
+          'Leave-match handling now counts as a self-defeat and ends the match for both sides.',
+          'Results flow now opens the results screen immediately with a manual skip option.'
+        ]
+      }
+    ];
+
+    versions.forEach(release => {
+      const slide = document.createElement('div');
+      slide.className = 'version-slide';
+
+      const title = document.createElement('h4');
+      title.textContent = release.title;
+      slide.appendChild(title);
+
+      const body = document.createElement('div');
+      release.details.forEach(detail => {
+        const item = document.createElement('div');
+        item.textContent = detail;
+        body.appendChild(item);
+      });
+      slide.appendChild(body);
+      this.versionSlideStack.appendChild(slide);
+    });
+  }
+
   _openVersionModal() {
+    this._renderVersionSlides();
     if (this.versionModal) this.versionModal.style.display = 'flex';
   }
 

@@ -37,16 +37,15 @@
           <span class="logo-part logo-or">OR</span>
           <span class="logo-part logo-shield">SHIELD</span>
         </div>
-        <button id="btn-version" class="version-pill" type="button" aria-label="Open version notes">v3.0</button>
+        <button id="btn-version" class="version-pill" type="button" aria-label="Open version notes">v3.1</button>
       </div>
       <div class="game-mode" id="menu-game-mode-subtitle">LOCAL</div>
     </header>
 
-    <div class="setup-card">
-      <label class="setup-label" for="resource-units-input">STARTING RESOURCE UNITS</label>
+<div id="resource-settings-card" class="setup-card">
+      <label class="setup-label" for="resource-units-input">Match Resource units</label>
       <div class="resource-row">
         <input id="resource-units-input" class="resource-input" type="number" min="1" max="30" step="1" value="10" />
-        <span class="resource-help">Each player starts with this pool. When it runs out, they can only idle.</span>
       </div>
     </div>
 
@@ -82,7 +81,7 @@
       </div>
 
       <!-- AI Level Selector -->
-      <div class="ai-level-card">
+      <div id="ai-level-card" class="ai-level-card">
         <div class="ai-level-header">
           <span class="ai-level-title">CPU COGNITION LEVEL</span>
           <button id="btn-ai-level-info" class="btn-info-circle" aria-label="Level info">ⓘ</button>
@@ -164,7 +163,7 @@
       </div>
 
       <!-- P2P Leaderboard (dynamic, history-based) -->
-      <div class="leaderboard-card">
+      <div id="p2p-leaderboard-card" class="leaderboard-card">
         <div class="lb-header">
           <span class="lb-title">Leaderboard</span>
         </div>
@@ -174,7 +173,7 @@
       </div>
 
       <!-- P2P Matchmaking setup -->
-      <div class="p2p-card">
+      <div id="p2p-card" class="p2p-card">
         <div class="p2p-card-header">MATCHMAKING</div>
 
         <div class="p2p-section">
@@ -377,7 +376,14 @@
       </div>
       <!-- Slide 3 -->
       <div class="tutorial-slide" data-slide="2" style="display: none;">
-        <h3>3. Matchup Matrix</h3>
+        <h3>3. Match Resource units</h3>
+        <p>Match Resource units are chosen before each match using the menu slider. Both players begin with the same fixed number of units.</p>
+        <p class="tut-highlight">Every <strong>SHOOT</strong> or <strong>SHIELD</strong> costs 1 unit. When a player has no units left, only <strong>IDLE</strong> remains available.</p>
+        <p>In v3.1 this panel is now called <strong>Match Resource units</strong>, and this version uses a fixed pool for the whole match.</p>
+      </div>
+      <!-- Slide 4 -->
+      <div class="tutorial-slide" data-slide="3" style="display: none;">
+        <h3>4. Matchup Matrix</h3>
         <div class="rules-grid">
           <div class="rule-row">
             <span class="rule-combo">
@@ -422,9 +428,9 @@
           </div>
         </div>
       </div>
-      <!-- Slide 4 -->
-      <div class="tutorial-slide" data-slide="3" style="display: none;">
-        <h3>4. Flow & Timer</h3>
+      <!-- Slide 5 -->
+      <div class="tutorial-slide" data-slide="4" style="display: none;">
+        <h3>5. Flow & Timer</h3>
         <p>Every round has a <strong>10-second</strong> selection phase. You can vote for any move during this time. The selection active at 0s is automatically committed.</p>
         <p>A <strong>5-second</strong> reveal phase shows both moves.</p>
         <p class="tut-highlight">If the match ends in your victory, your profile inherits the combined match points of both players!</p>
@@ -438,6 +444,7 @@
         <span class="tut-dot" data-slide="1"></span>
         <span class="tut-dot" data-slide="2"></span>
         <span class="tut-dot" data-slide="3"></span>
+        <span class="tut-dot" data-slide="4"></span>
       </div>
       <button id="btn-tutorial-next" class="btn-ghost">Next &rarr;</button>
     </div>
@@ -450,16 +457,8 @@
 <div id="version-modal" class="modal-overlay" style="display: none;">
   <div class="modal-content modal-sm">
     <button id="btn-close-version" class="modal-close-btn" aria-label="Close version notes">×</button>
-    <h3 style="margin-top: 0;">Release v3.0</h3>
-    <div class="tutorial-slide active">
-      <p>This release changes the pacing, match endings, and the way players leave or finish a duel.</p>
-      <ul class="tut-rules-list">
-        <li><strong>Fixed starting units:</strong> each match begins with a chosen resource pool, and once it is spent, idle is the only option left.</li>
-        <li><strong>Draw rule:</strong> if both players exhaust their units while still alive, the match ends in a draw.</li>
-        <li><strong>Leave-match handling:</strong> leaving now counts as a self-defeat and ends the match for both sides.</li>
-        <li><strong>Results flow:</strong> match endings now open the results screen immediately, with a manual skip option.</li>
-      </ul>
-    </div>
+    <h3 id="version-modal-title" style="margin-top: 0;">Release v3.1</h3>
+    <div id="version-slide-stack" class="version-slide-stack"></div>
   </div>
 </div>
 
